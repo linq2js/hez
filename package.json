@@ -1,0 +1,45 @@
+{
+  "name": "hez",
+  "version": "1.0.0",
+  "description": "Flux architecture for React app. Fast and easy to use",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linq2js/hez.git"
+  },
+  "keywords": [
+    "functional",
+    "functional programming",
+    "flux",
+    "react",
+    "react-hooks",
+    "es6",
+    "state",
+    "state management",
+    "redux",
+    "store"
+  ],
+  "author": "linq2js",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/linq2js/hez/issues"
+  },
+  "homepage": "https://github.com/linq2js/hez#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "babel-jest": "^23.0.1",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "jest": "^23.1.0",
+    "node-fetch": "^2.2.0",
+    "prettier": "^1.15.2"
+  },
+  "jest": {
+    "transformIgnorePatterns": []
+  }
+}
