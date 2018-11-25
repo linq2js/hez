@@ -87,9 +87,8 @@ function createState() {
 function createStore() {
   var initialState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
-  var state = createState(initialState, notify);
   var subscribers = [];
-  var getState = state.get;
+  var state = initialState;
   var lastDispatchedAction = void 0;
   var shouldNotify = false;
   var dispatchingScopes = 0;
@@ -106,6 +105,18 @@ function createStore() {
         subscribers.splice(index, 1);
       }
     };
+  }
+
+  function getState() {
+    return state;
+  }
+
+  function createStateForAction(action) {
+    return createState(state, function (nextState) {
+      state = nextState;
+      console.log(111);
+      notify(action.displayName || action.name);
+    });
   }
 
   function dispatch(action) {
@@ -126,8 +137,7 @@ function createStore() {
         for (var _iterator = actions[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
           var _action = _step.value;
 
-          lastDispatchedAction = _action.displayName || _action.name;
-          lastResult = _action.apply(undefined, [state].concat(args));
+          lastResult = _action.apply(undefined, [createStateForAction(_action)].concat(args));
         }
       } catch (err) {
         _didIteratorError = true;
@@ -145,26 +155,28 @@ function createStore() {
       }
 
       return lastResult;
-    } catch (e) {
+    } finally {
       dispatchingScopes--;
-      if (!dispatchingScopes && !shouldNotify) {
+      if (!dispatchingScopes && shouldNotify) {
         shouldNotify = false;
-        notify();
+        notify(lastDispatchedAction);
       }
     }
   }
 
-  function notify() {
+  function notify(action) {
     if (dispatchingScopes) {
       shouldNotify = true;
+      lastDispatchedAction = action;
+      return;
     }
     subscribers.forEach(function (subscriber) {
-      return subscriber(getState(), { action: lastDispatchedAction });
+      return subscriber(getState(), { action: action });
     });
   }
 
   return {
-    getState: state.get,
+    getState: getState,
     dispatch: dispatch,
     subscribe: subscribe
   };

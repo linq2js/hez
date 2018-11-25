@@ -137,3 +137,17 @@ const Add2 = state =>
     value2: state.value2 + 1
   });
 ```
+
+## Unit Test
+
+```jsx harmony
+import { createState } from "hez";
+
+const Add = ({ count, set }) => set({ count: count + 1 });
+
+test("should increase count value by 1", () => {
+  const state = createState({ count: 0 });
+  Add(state);
+  expect(state.count).toBe(1);
+});
+```

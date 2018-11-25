@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, memo, createElement } from "react";
+import { createElement, memo, useEffect, useMemo, useState } from "react";
 
 if (!useMemo) {
   throw new Error(
@@ -66,9 +66,8 @@ export function createState(initialState = {}, onChange) {
  * create store
  */
 export function createStore(initialState = {}) {
-  const state = createState(initialState, notify);
   const subscribers = [];
-  const getState = state.get;
+  let state = initialState;
   let lastDispatchedAction;
   let shouldNotify = false;
   let dispatchingScopes = 0;
@@ -87,36 +86,47 @@ export function createStore(initialState = {}) {
     };
   }
 
+  function getState() {
+    return state;
+  }
+
+  function createStateForAction(action) {
+    return createState(state, nextState => {
+      state = nextState;
+      console.log(111);
+      notify(action.displayName || action.name);
+    });
+  }
+
   function dispatch(action, ...args) {
     dispatchingScopes++;
     try {
       const actions = Array.isArray(action) ? action : [action];
       let lastResult;
       for (const action of actions) {
-        lastDispatchedAction = action.displayName || action.name;
-        lastResult = action(state, ...args);
+        lastResult = action(createStateForAction(action), ...args);
       }
       return lastResult;
-    } catch (e) {
+    } finally {
       dispatchingScopes--;
-      if (!dispatchingScopes && !shouldNotify) {
+      if (!dispatchingScopes && shouldNotify) {
         shouldNotify = false;
-        notify();
+        notify(lastDispatchedAction);
       }
     }
   }
 
-  function notify() {
+  function notify(action) {
     if (dispatchingScopes) {
       shouldNotify = true;
+      lastDispatchedAction = action;
+      return;
     }
-    subscribers.forEach(subscriber =>
-      subscriber(getState(), { action: lastDispatchedAction })
-    );
+    subscribers.forEach(subscriber => subscriber(getState(), { action }));
   }
 
   return {
-    getState: state.get,
+    getState,
     dispatch,
     subscribe
   };
