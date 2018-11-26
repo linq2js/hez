@@ -42,14 +42,42 @@ function createState() {
     return arguments.length ? typeof prop === "function" ? prop(state) : state[prop] : state;
   }
 
-  function setState(nextState) {
-    if (typeof nextState === "function") {
-      return setState(nextState(state));
+  function setState() {
+    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
     }
-    if (state === nextState) {
-      return;
+
+    if (args.length === 2) {
+      // support state prop modifier
+      // state.set('count', x => x + 1)
+      var prop = args[0],
+          modifier = args[1];
+
+      var prevValue = state[prop];
+      var nextValue = modifier(prevValue);
+      if (nextValue !== prevValue) {
+        // clone current state
+        state = Array.isArray(state) ? state.slice() : Object.assign({}, state);
+        state[prop] = nextValue;
+        notify();
+      }
+    } else {
+      var nextState = args[0];
+      // support callback
+      // state.set(state => doSomething)
+
+      if (typeof nextState === "function") {
+        return setState(nextState(state));
+      }
+      if (state === nextState) {
+        return;
+      }
+      state = nextState;
+      notify();
     }
-    state = nextState;
+  }
+
+  function notify() {
     Object.assign(proxyTarget, state);
     onChange && onChange(state);
   }
@@ -125,8 +153,8 @@ function createStore() {
       var actions = Array.isArray(action) ? action : [action];
       var lastResult = void 0;
 
-      for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-        args[_key - 1] = arguments[_key];
+      for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+        args[_key2 - 1] = arguments[_key2];
       }
 
       var _iteratorNormalCompletion = true;
@@ -183,15 +211,15 @@ function createStore() {
 }
 
 function useActions(store) {
-  for (var _len2 = arguments.length, actions = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-    actions[_key2 - 1] = arguments[_key2];
+  for (var _len3 = arguments.length, actions = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+    actions[_key3 - 1] = arguments[_key3];
   }
 
   return (0, _react.useMemo)(function () {
     return actions.map(function (action) {
       return function () {
-        for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-          args[_key3] = arguments[_key3];
+        for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
+          args[_key4] = arguments[_key4];
         }
 
         return store.dispatch.apply(store, [action].concat(args));
@@ -213,8 +241,8 @@ function useStore(store) {
       localState = _useState2[0],
       setLocalState = _useState2[1];
 
-  for (var _len4 = arguments.length, cacheKeys = Array(_len4 > 2 ? _len4 - 2 : 0), _key4 = 2; _key4 < _len4; _key4++) {
-    cacheKeys[_key4 - 2] = arguments[_key4];
+  for (var _len5 = arguments.length, cacheKeys = Array(_len5 > 2 ? _len5 - 2 : 0), _key5 = 2; _key5 < _len5; _key5++) {
+    cacheKeys[_key5 - 2] = arguments[_key5];
   }
 
   (0, _react.useEffect)(function () {
@@ -236,8 +264,8 @@ function useStoreMemo(store, cacheKeysSelector) {
   if (Array.isArray(cacheKeysSelector)) {
     var selectors = cacheKeysSelector;
     cacheKeysSelector = function cacheKeysSelector() {
-      for (var _len6 = arguments.length, args = Array(_len6), _key6 = 0; _key6 < _len6; _key6++) {
-        args[_key6] = arguments[_key6];
+      for (var _len7 = arguments.length, args = Array(_len7), _key7 = 0; _key7 < _len7; _key7++) {
+        args[_key7] = arguments[_key7];
       }
 
       return selectors.map(function (selector) {
@@ -246,8 +274,8 @@ function useStoreMemo(store, cacheKeysSelector) {
     };
   }
 
-  for (var _len5 = arguments.length, extraCacheKeys = Array(_len5 > 3 ? _len5 - 3 : 0), _key5 = 3; _key5 < _len5; _key5++) {
-    extraCacheKeys[_key5 - 3] = arguments[_key5];
+  for (var _len6 = arguments.length, extraCacheKeys = Array(_len6 > 3 ? _len6 - 3 : 0), _key6 = 3; _key6 < _len6; _key6++) {
+    extraCacheKeys[_key6 - 3] = arguments[_key6];
   }
 
   var cacheKeys = useStore(store, cacheKeysSelector).concat(extraCacheKeys);
@@ -287,8 +315,8 @@ function withActions(store, actions) {
 }
 
 function compose() {
-  for (var _len7 = arguments.length, functions = Array(_len7), _key7 = 0; _key7 < _len7; _key7++) {
-    functions[_key7] = arguments[_key7];
+  for (var _len8 = arguments.length, functions = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
+    functions[_key8] = arguments[_key8];
   }
 
   if (functions.length === 0) {
@@ -309,8 +337,8 @@ function compose() {
 }
 
 function hoc() {
-  for (var _len8 = arguments.length, callbacks = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
-    callbacks[_key8] = arguments[_key8];
+  for (var _len9 = arguments.length, callbacks = Array(_len9), _key9 = 0; _key9 < _len9; _key9++) {
+    callbacks[_key9] = arguments[_key9];
   }
 
   return callbacks.reduce(function (nextHoc, callback) {

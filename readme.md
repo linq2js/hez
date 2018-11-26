@@ -117,6 +117,15 @@ const AddTwo = state => {
 };
 ```
 
+## Using state.set
+
+```jsx harmony
+const state = createState({ count: 0 });
+state.set({ count: 1 }); // => 1
+state.set("count", x => x + 1); // => 2
+// state.set(prevState => nextState);
+```
+
 ## Using state.merge
 
 ```jsx harmony
@@ -136,6 +145,149 @@ const Add2 = state =>
   state.merge({
     value2: state.value2 + 1
   });
+
+// state.merge(prevState => nextState);
+```
+
+## Using immhelper to update state
+
+```jsx harmony
+import update from "immhelper";
+import { createState } from "hez";
+
+const state = createState({ value1: 1, value2: 2, todos: [] });
+state.set(
+  update(state, {
+    value1: ["set", 2],
+    value2: ["set", 3],
+    todos: ["push", "New Todo"]
+  })
+);
+
+// shorthand
+state.set(
+  update({
+    value1: ["set", 2],
+    value2: ["set", 3],
+    todos: ["push", "New Todo"]
+  })
+);
+```
+
+## Printing state
+
+```jsx harmony
+import { createState } from "hez";
+
+const state = createState({ count: 1 });
+console.log(state); // => [[Proxy]]
+console.log(state.get()); // => { count: 1 }
+```
+
+## Access state props
+
+```jsx harmony
+import { createState } from "hez";
+
+const state = createState({ count: 1 });
+const { count } = state;
+const count2 = state.count;
+const count3 = state.get("count");
+const count4 = state.get(x => x.count);
+```
+
+## Dispatching action and handling state change
+
+```jsx harmony
+import { createStore } from "hez";
+
+const store = createStore({ count: 0 });
+
+const Up = (state, value = 1) => state.set("count", x => x + value);
+
+// handle change
+store.subscribe((state, e) => {
+  console.log(state, e.action);
+});
+
+store.dispatch(Up); // => { count: 1 }, Up
+store.dispatch(Up, 2); // => { count: 3 }, Up
+```
+
+## Using useStore(store, selector, ...cacheKeys)
+
+```jsx harmony
+import React from "react";
+import { createStore, useStore, withState } from "hez";
+
+const store = createStore({
+  todos: {
+    1: "Item 1",
+    2: "Item 2"
+  }
+});
+const TodoItem = ({ id }) => {
+  // component will re-render once state changed or received new id prop
+  const text = useStore(store, state => state.todos[id], id);
+  return <div>{text}</div>;
+};
+
+const TodoHoc = withState(
+  store,
+  (state, props) => ({
+    text: state.todos[props.id]
+  }),
+  // cache key factory (optional) should return array
+  props => [props.id]
+);
+
+const TodoItem = TodoHoc(props => <div>{props.text}</div>);
+```
+
+## Using useStoreMemo(store, cacheKeysSelector, stateSelector, ...extraCacheKeys)
+
+```jsx harmony
+import React from "react";
+import { createStore } from "hez";
+
+const store = createStore({
+  ids: [1, 2],
+  todos: {
+    1: "Item 1",
+    2: "Item 2"
+  }
+});
+
+// selector
+const selectIds = state => state.ids;
+const selectTodos = state => state.todos;
+const selectTodoList = (ids, todos) => ids.map(id => ({ id, ...todos[id] }));
+
+const TodoList = () => {
+  const todos = useStoreMemo(store, [selectIds, selectTodos], selectTodoList);
+
+  return <div>{JSON.stringify(todos)}</div>;
+};
+```
+
+## Using withActions
+
+```jsx harmony
+import React from "react";
+import { withActions } from "hez";
+
+const Up = () => {};
+const Down = () => {};
+
+const Counter = withActions(store, {
+  up: Up,
+  down: Down
+})(({ up, down }) => (
+  <div>
+    <button onClick={up}>Up</button>
+    <button onClick={down}>Down</button>
+  </div>
+));
 ```
 
 ## Unit Test

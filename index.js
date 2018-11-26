@@ -23,14 +23,35 @@ export function createState(initialState = {}, onChange) {
       : state;
   }
 
-  function setState(nextState) {
-    if (typeof nextState === "function") {
-      return setState(nextState(state));
+  function setState(...args) {
+    if (args.length === 2) {
+      // support state prop modifier
+      // state.set('count', x => x + 1)
+      const [prop, modifier] = args;
+      const prevValue = state[prop];
+      const nextValue = modifier(prevValue);
+      if (nextValue !== prevValue) {
+        // clone current state
+        state = Array.isArray(state) ? state.slice() : Object.assign({}, state);
+        state[prop] = nextValue;
+        notify();
+      }
+    } else {
+      const [nextState] = args;
+      // support callback
+      // state.set(state => doSomething)
+      if (typeof nextState === "function") {
+        return setState(nextState(state));
+      }
+      if (state === nextState) {
+        return;
+      }
+      state = nextState;
+      notify();
     }
-    if (state === nextState) {
-      return;
-    }
-    state = nextState;
+  }
+
+  function notify() {
     Object.assign(proxyTarget, state);
     onChange && onChange(state);
   }
