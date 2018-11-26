@@ -3,22 +3,21 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = undefined;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
 exports.createState = createState;
 exports.createStore = createStore;
-exports.useActions = useActions;
-exports.useStore = useStore;
-exports.useStoreMemo = useStoreMemo;
-exports.withState = withState;
-exports.withActions = withActions;
 exports.compose = compose;
 exports.hoc = hoc;
+exports.Provider = Provider;
 
 var _react = require("react");
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 if (!_react.useMemo) {
   throw new Error("This package requires React hooks. Please install React 16.7+");
@@ -27,6 +26,8 @@ if (!_react.useMemo) {
 var defaultSelector = function defaultSelector(state) {
   return state;
 };
+var storeContext = (0, _react.createContext)();
+var isStoreProp = "@@store";
 
 /**
  * create state manager
@@ -203,14 +204,18 @@ function createStore() {
     });
   }
 
-  return {
+  return _defineProperty({
     getState: getState,
     dispatch: dispatch,
     subscribe: subscribe
-  };
+  }, isStoreProp, true);
 }
 
-function useActions(store) {
+/**
+ * useActions(store, ...actions)
+ * useActions(...actions)
+ */
+var useActions = exports.useActions = createStoreUtility(function (store) {
   for (var _len3 = arguments.length, actions = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
     actions[_key3 - 1] = arguments[_key3];
   }
@@ -226,9 +231,17 @@ function useActions(store) {
       };
     });
   }, [store].concat(actions));
-}
+});
 
-function useStore(store) {
+/**
+ * useStore(store, selector, ...cacheKeys)
+ * useStore(selector, ...cacheKeys)
+ */
+var useStore = exports.useStore = createStoreUtility(function (store) {
+  for (var _len5 = arguments.length, cacheKeys = Array(_len5 > 2 ? _len5 - 2 : 0), _key5 = 2; _key5 < _len5; _key5++) {
+    cacheKeys[_key5 - 2] = arguments[_key5];
+  }
+
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
 
   var state = store.getState();
@@ -241,10 +254,6 @@ function useStore(store) {
       localState = _useState2[0],
       setLocalState = _useState2[1];
 
-  for (var _len5 = arguments.length, cacheKeys = Array(_len5 > 2 ? _len5 - 2 : 0), _key5 = 2; _key5 < _len5; _key5++) {
-    cacheKeys[_key5 - 2] = arguments[_key5];
-  }
-
   (0, _react.useEffect)(function () {
     return store.subscribe(function (nextState) {
       var nextLocalState = selector(nextState);
@@ -254,9 +263,17 @@ function useStore(store) {
     });
   }, cacheKeys);
   return localState;
-}
+});
 
-function useStoreMemo(store, cacheKeysSelector) {
+/**
+ * useStoreMemo(store, cacheKeysSelector, stateSelector, ...extraCacheKeys)
+ * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
+ */
+var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, cacheKeysSelector) {
+  for (var _len6 = arguments.length, extraCacheKeys = Array(_len6 > 3 ? _len6 - 3 : 0), _key6 = 3; _key6 < _len6; _key6++) {
+    extraCacheKeys[_key6 - 3] = arguments[_key6];
+  }
+
   var stateSelector = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (state) {
     return state;
   };
@@ -273,46 +290,44 @@ function useStoreMemo(store, cacheKeysSelector) {
       });
     };
   }
-
-  for (var _len6 = arguments.length, extraCacheKeys = Array(_len6 > 3 ? _len6 - 3 : 0), _key6 = 3; _key6 < _len6; _key6++) {
-    extraCacheKeys[_key6 - 3] = arguments[_key6];
-  }
-
   var cacheKeys = useStore(store, cacheKeysSelector).concat(extraCacheKeys);
   return (0, _react.useMemo)(function () {
     return stateSelector.apply(undefined, _toConsumableArray(cacheKeys));
   }, cacheKeys);
-}
+});
 
-function withState(store, selector, cacheKeyFactory) {
-  return function (Component) {
-    var MemoComponent = (0, _react.memo)(Component);
+/**
+ * withState(store, selector, cacheKeyFactory)
+ * withState(selector, cacheKeyFactory)
+ */
+var withState = exports.withState = createStoreHoc(function (Component, props, initialData, store, selector, cacheKeyFactory) {
+  var nextProps = useStore.apply(undefined, [store, function (state) {
+    return selector(state, props);
+  }].concat(_toConsumableArray(cacheKeyFactory && cacheKeyFactory(props) || [])));
 
-    return (0, _react.memo)(function (props) {
-      var nextProps = useStore.apply(undefined, [store, function (state) {
-        return selector(state, props);
-      }].concat(_toConsumableArray(cacheKeyFactory && cacheKeyFactory(props) || [])));
+  return (0, _react.createElement)(Component, nextProps);
+});
 
-      return (0, _react.createElement)(MemoComponent, nextProps);
-    });
+/**
+ * withActions(store, actions)
+ * withActions(actions)
+ */
+var withActions = exports.withActions = createStoreHoc(function (Component, props, _ref2, store) {
+  var keys = _ref2.keys,
+      values = _ref2.values;
+
+  var nextProps = {};
+  var mappedActions = useActions.apply(undefined, [store].concat(_toConsumableArray(values)));
+  mappedActions.forEach(function (mappedAction, index) {
+    return nextProps[keys[index]] = mappedAction;
+  });
+  return (0, _react.createElement)(Component, Object.assign(nextProps, props));
+}, function (actions) {
+  return {
+    keys: Object.keys(actions),
+    values: Object.values(actions)
   };
-}
-
-function withActions(store, actions) {
-  var keys = Object.keys(actions);
-  var values = Object.values(actions);
-  return function (Component) {
-    var MemoComponent = (0, _react.memo)(Component);
-    return (0, _react.memo)(function (props) {
-      var nextProps = {};
-      var mappedActions = useActions.apply(undefined, [store].concat(_toConsumableArray(values)));
-      mappedActions.forEach(function (mappedAction, index) {
-        return nextProps[keys[index]] = mappedAction;
-      });
-      return (0, _react.createElement)(MemoComponent, Object.assign(nextProps, props));
-    });
-  };
-}
+});
 
 function compose() {
   for (var _len8 = arguments.length, functions = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
@@ -361,5 +376,50 @@ function hoc() {
   }, function (Component) {
     return Component;
   });
+}
+
+function Provider(_ref3) {
+  var store = _ref3.store,
+      children = _ref3.children;
+
+  return (0, _react.createElement)(storeContext.Provider, { value: store, children: children });
+}
+
+function createStoreUtility(callback) {
+  return function () {
+    for (var _len10 = arguments.length, args = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
+      args[_key10] = arguments[_key10];
+    }
+
+    var store = (0, _react.useContext)(storeContext);
+    if (isStore(args[0])) {
+      return callback.apply(undefined, args);
+    }
+    return callback.apply(undefined, _toConsumableArray([store].concat(args)));
+  };
+}
+
+function createStoreHoc(callback, initializer) {
+  return function () {
+    for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
+      args[_key11] = arguments[_key11];
+    }
+
+    var hasStore = isStore(args[0]);
+    // call initializer without store if any
+    var initializedData = initializer && initializer.apply(undefined, _toConsumableArray(hasStore ? args.slice(1) : args));
+
+    return function (Component) {
+      var MemoComponent = (0, _react.memo)(Component);
+      return (0, _react.memo)(function (props) {
+        var store = (0, _react.useContext)(storeContext);
+        return callback.apply(undefined, [MemoComponent, props, initializedData].concat(_toConsumableArray(hasStore ? args : [store].concat(args))));
+      });
+    };
+  };
+}
+
+function isStore(obj) {
+  return obj && obj[isStoreProp];
 }
 //# sourceMappingURL=index.js.map

@@ -8,9 +8,8 @@ Hez requires React hooks, so you must install react 16.7+ and react-dom 16.7+ pa
 
 1. No reducer
 2. No action creator
-3. No context Provider
-4. Simple and reusable action logic
-5. Easy to write unit-test
+3. Simple and reusable action logic
+4. Easy to write unit-test
 
 ## Hez in action
 
@@ -288,6 +287,29 @@ const Counter = withActions(store, {
     <button onClick={down}>Down</button>
   </div>
 ));
+```
+
+## Using Provider to pass down store to component tree
+
+As many frameworks, hez also supports Provider to passing down store
+
+```jsx harmony
+import React from "react";
+import { Provider, createStore, useStore } from "hez";
+
+const store = createStore();
+
+const Counter = () => {
+  // dont need to call useStore(store, state => state.count);
+  const count = useStore(state => state.count);
+  return <div>{count}</div>;
+};
+
+const App = () => (
+  <Provider store={store}>
+    <Counter />
+  </Provider>
+);
 ```
 
 ## Unit Test

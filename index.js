@@ -1,4 +1,12 @@
-import { createElement, memo, useEffect, useMemo, useState } from "react";
+import {
+  createElement,
+  createContext,
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+  useContext
+} from "react";
 
 if (!useMemo) {
   throw new Error(
@@ -7,6 +15,8 @@ if (!useMemo) {
 }
 
 const defaultSelector = state => state;
+const storeContext = createContext();
+const isStoreProp = "@@store";
 
 /**
  * create state manager
@@ -149,79 +159,99 @@ export function createStore(initialState = {}) {
   return {
     getState,
     dispatch,
-    subscribe
+    subscribe,
+    [isStoreProp]: true
   };
 }
 
-export function useActions(store, ...actions) {
+/**
+ * useActions(store, ...actions)
+ * useActions(...actions)
+ */
+export const useActions = createStoreUtility((store, ...actions) => {
   return useMemo(
     () => actions.map(action => (...args) => store.dispatch(action, ...args)),
     [store].concat(actions)
   );
-}
+});
 
-export function useStore(store, selector = defaultSelector, ...cacheKeys) {
-  const state = store.getState();
-  const globalState = useMemo(() => selector(state), [state]);
-  let [localState, setLocalState] = useState(globalState);
+/**
+ * useStore(store, selector, ...cacheKeys)
+ * useStore(selector, ...cacheKeys)
+ */
+export const useStore = createStoreUtility(
+  (store, selector = defaultSelector, ...cacheKeys) => {
+    const state = store.getState();
+    const globalState = useMemo(() => selector(state), [state]);
+    let [localState, setLocalState] = useState(globalState);
 
-  useEffect(() => {
-    return store.subscribe(nextState => {
-      let nextLocalState = selector(nextState);
-      if (nextLocalState !== localState) {
-        setLocalState((localState = nextLocalState));
-      }
-    });
-  }, cacheKeys);
-  return localState;
-}
-
-export function useStoreMemo(
-  store,
-  cacheKeysSelector,
-  stateSelector = state => state,
-  ...extraCacheKeys
-) {
-  if (Array.isArray(cacheKeysSelector)) {
-    const selectors = cacheKeysSelector;
-    cacheKeysSelector = (...args) =>
-      selectors.map(selector => selector(...args));
+    useEffect(() => {
+      return store.subscribe(nextState => {
+        let nextLocalState = selector(nextState);
+        if (nextLocalState !== localState) {
+          setLocalState((localState = nextLocalState));
+        }
+      });
+    }, cacheKeys);
+    return localState;
   }
-  const cacheKeys = useStore(store, cacheKeysSelector).concat(extraCacheKeys);
-  return useMemo(() => stateSelector(...cacheKeys), cacheKeys);
-}
+);
 
-export function withState(store, selector, cacheKeyFactory) {
-  return Component => {
-    const MemoComponent = memo(Component);
+/**
+ * useStoreMemo(store, cacheKeysSelector, stateSelector, ...extraCacheKeys)
+ * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
+ */
+export const useStoreMemo = createStoreUtility(
+  (
+    store,
+    cacheKeysSelector,
+    stateSelector = state => state,
+    ...extraCacheKeys
+  ) => {
+    if (Array.isArray(cacheKeysSelector)) {
+      const selectors = cacheKeysSelector;
+      cacheKeysSelector = (...args) =>
+        selectors.map(selector => selector(...args));
+    }
+    const cacheKeys = useStore(store, cacheKeysSelector).concat(extraCacheKeys);
+    return useMemo(() => stateSelector(...cacheKeys), cacheKeys);
+  }
+);
 
-    return memo(props => {
-      const nextProps = useStore(
-        store,
-        state => selector(state, props),
-        ...((cacheKeyFactory && cacheKeyFactory(props)) || [])
-      );
+/**
+ * withState(store, selector, cacheKeyFactory)
+ * withState(selector, cacheKeyFactory)
+ */
+export const withState = createStoreHoc(
+  (Component, props, initialData, store, selector, cacheKeyFactory) => {
+    const nextProps = useStore(
+      store,
+      state => selector(state, props),
+      ...((cacheKeyFactory && cacheKeyFactory(props)) || [])
+    );
 
-      return createElement(MemoComponent, nextProps);
-    });
-  };
-}
+    return createElement(Component, nextProps);
+  }
+);
 
-export function withActions(store, actions) {
-  const keys = Object.keys(actions);
-  const values = Object.values(actions);
-  return Component => {
-    const MemoComponent = memo(Component);
-    return memo(props => {
-      const nextProps = {};
-      const mappedActions = useActions(store, ...values);
-      mappedActions.forEach(
-        (mappedAction, index) => (nextProps[keys[index]] = mappedAction)
-      );
-      return createElement(MemoComponent, Object.assign(nextProps, props));
-    });
-  };
-}
+/**
+ * withActions(store, actions)
+ * withActions(actions)
+ */
+export const withActions = createStoreHoc(
+  (Component, props, { keys, values }, store) => {
+    const nextProps = {};
+    const mappedActions = useActions(store, ...values);
+    mappedActions.forEach(
+      (mappedAction, index) => (nextProps[keys[index]] = mappedAction)
+    );
+    return createElement(Component, Object.assign(nextProps, props));
+  },
+  actions => ({
+    keys: Object.keys(actions),
+    values: Object.values(actions)
+  })
+);
 
 export function compose(...functions) {
   if (functions.length === 0) {
@@ -255,4 +285,44 @@ export function hoc(...callbacks) {
     },
     Component => Component
   );
+}
+
+export function Provider({ store, children }) {
+  return createElement(storeContext.Provider, { value: store, children });
+}
+
+function createStoreUtility(callback) {
+  return (...args) => {
+    const store = useContext(storeContext);
+    if (isStore(args[0])) {
+      return callback(...args);
+    }
+    return callback(...[store].concat(args));
+  };
+}
+
+function createStoreHoc(callback, initializer) {
+  return (...args) => {
+    const hasStore = isStore(args[0]);
+    // call initializer without store if any
+    const initializedData =
+      initializer && initializer(...(hasStore ? args.slice(1) : args));
+
+    return Component => {
+      const MemoComponent = memo(Component);
+      return memo(props => {
+        const store = useContext(storeContext);
+        return callback(
+          MemoComponent,
+          props,
+          initializedData,
+          ...(hasStore ? args : [store].concat(args))
+        );
+      });
+    };
+  };
+}
+
+function isStore(obj) {
+  return obj && obj[isStoreProp];
 }
