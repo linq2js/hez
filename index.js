@@ -124,7 +124,6 @@ export function createStore(initialState = {}) {
   function createStateForAction(action) {
     return createState(state, nextState => {
       state = nextState;
-      console.log(111);
       notify(action.displayName || action.name);
     });
   }
