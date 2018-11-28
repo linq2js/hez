@@ -26,7 +26,7 @@ if (!_react.useMemo) {
 var defaultSelector = function defaultSelector(state) {
   return state;
 };
-var storeContext = (0, _react.createContext)();
+var storeContext = (0, _react.createContext)(null);
 var isStoreProp = "@@store";
 
 /**
@@ -35,9 +35,15 @@ var isStoreProp = "@@store";
 function createState() {
   var initialState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
   var onChange = arguments[1];
+  var injectedProps = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 
   var state = initialState;
   var proxyTarget = initialState;
+  var api = {
+    getState: getState,
+    setState: setState,
+    mergeState: mergeState
+  };
 
   function getState(prop) {
     return arguments.length ? typeof prop === "function" ? prop(state) : state[prop] : state;
@@ -68,7 +74,7 @@ function createState() {
       // state.set(state => doSomething)
 
       if (typeof nextState === "function") {
-        return setState(nextState(state));
+        nextState = nextState(state);
       }
       if (state === nextState) {
         return;
@@ -105,6 +111,20 @@ function createState() {
       if (prop === "get") return getState;
       if (prop === "set") return setState;
       if (prop === "merge") return mergeState;
+      if (prop in injectedProps) {
+        var value = injectedProps[prop];
+        // create wrapper for injected method
+        if (typeof value === "function") {
+          return function () {
+            for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+              args[_key2] = arguments[_key2];
+            }
+
+            return value.apply(undefined, [api].concat(args));
+          };
+        }
+        return value;
+      }
       return proxyTarget[prop];
     }
   });
@@ -117,6 +137,7 @@ function createStore() {
   var initialState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
   var subscribers = [];
+  var stateProps = {};
   var state = initialState;
   var lastDispatchedAction = void 0;
   var shouldNotify = false;
@@ -144,7 +165,7 @@ function createStore() {
     return createState(state, function (nextState) {
       state = nextState;
       notify(action.displayName || action.name);
-    });
+    }, stateProps);
   }
 
   function dispatch(action) {
@@ -153,8 +174,8 @@ function createStore() {
       var actions = Array.isArray(action) ? action : [action];
       var lastResult = void 0;
 
-      for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-        args[_key2 - 1] = arguments[_key2];
+      for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+        args[_key3 - 1] = arguments[_key3];
       }
 
       var _iteratorNormalCompletion = true;
@@ -203,10 +224,18 @@ function createStore() {
     });
   }
 
+  /**
+   * inject state props
+   */
+  function inject(props) {
+    Object.assign(stateProps, props);
+  }
+
   return _defineProperty({
     getState: getState,
     dispatch: dispatch,
-    subscribe: subscribe
+    subscribe: subscribe,
+    inject: inject
   }, isStoreProp, true);
 }
 
@@ -215,15 +244,15 @@ function createStore() {
  * useActions(...actions)
  */
 var useActions = exports.useActions = createStoreUtility(function (store) {
-  for (var _len3 = arguments.length, actions = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
-    actions[_key3 - 1] = arguments[_key3];
+  for (var _len4 = arguments.length, actions = Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
+    actions[_key4 - 1] = arguments[_key4];
   }
 
   return (0, _react.useMemo)(function () {
     return actions.map(function (action) {
       return function () {
-        for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
-          args[_key4] = arguments[_key4];
+        for (var _len5 = arguments.length, args = Array(_len5), _key5 = 0; _key5 < _len5; _key5++) {
+          args[_key5] = arguments[_key5];
         }
 
         return store.dispatch.apply(store, [action].concat(args));
@@ -237,8 +266,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
  * useStore(selector, ...cacheKeys)
  */
 var useStore = exports.useStore = createStoreUtility(function (store) {
-  for (var _len5 = arguments.length, cacheKeys = Array(_len5 > 2 ? _len5 - 2 : 0), _key5 = 2; _key5 < _len5; _key5++) {
-    cacheKeys[_key5 - 2] = arguments[_key5];
+  for (var _len6 = arguments.length, cacheKeys = Array(_len6 > 2 ? _len6 - 2 : 0), _key6 = 2; _key6 < _len6; _key6++) {
+    cacheKeys[_key6 - 2] = arguments[_key6];
   }
 
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
@@ -269,8 +298,8 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
  * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
  */
 var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, cacheKeysSelector) {
-  for (var _len6 = arguments.length, extraCacheKeys = Array(_len6 > 3 ? _len6 - 3 : 0), _key6 = 3; _key6 < _len6; _key6++) {
-    extraCacheKeys[_key6 - 3] = arguments[_key6];
+  for (var _len7 = arguments.length, extraCacheKeys = Array(_len7 > 3 ? _len7 - 3 : 0), _key7 = 3; _key7 < _len7; _key7++) {
+    extraCacheKeys[_key7 - 3] = arguments[_key7];
   }
 
   var stateSelector = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (state) {
@@ -280,8 +309,8 @@ var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, ca
   if (Array.isArray(cacheKeysSelector)) {
     var selectors = cacheKeysSelector;
     cacheKeysSelector = function cacheKeysSelector() {
-      for (var _len7 = arguments.length, args = Array(_len7), _key7 = 0; _key7 < _len7; _key7++) {
-        args[_key7] = arguments[_key7];
+      for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
+        args[_key8] = arguments[_key8];
       }
 
       return selectors.map(function (selector) {
@@ -329,8 +358,8 @@ var withActions = exports.withActions = createStoreHoc(function (Component, prop
 });
 
 function compose() {
-  for (var _len8 = arguments.length, functions = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
-    functions[_key8] = arguments[_key8];
+  for (var _len9 = arguments.length, functions = Array(_len9), _key9 = 0; _key9 < _len9; _key9++) {
+    functions[_key9] = arguments[_key9];
   }
 
   if (functions.length === 0) {
@@ -351,8 +380,8 @@ function compose() {
 }
 
 function hoc() {
-  for (var _len9 = arguments.length, callbacks = Array(_len9), _key9 = 0; _key9 < _len9; _key9++) {
-    callbacks[_key9] = arguments[_key9];
+  for (var _len10 = arguments.length, callbacks = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
+    callbacks[_key10] = arguments[_key10];
   }
 
   return callbacks.reduce(function (nextHoc, callback) {
@@ -386,8 +415,8 @@ function Provider(_ref3) {
 
 function createStoreUtility(callback) {
   return function () {
-    for (var _len10 = arguments.length, args = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
-      args[_key10] = arguments[_key10];
+    for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
+      args[_key11] = arguments[_key11];
     }
 
     var store = (0, _react.useContext)(storeContext);
@@ -400,8 +429,8 @@ function createStoreUtility(callback) {
 
 function createStoreHoc(callback, initializer) {
   return function () {
-    for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
-      args[_key11] = arguments[_key11];
+    for (var _len12 = arguments.length, args = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
+      args[_key12] = arguments[_key12];
     }
 
     var hasStore = isStore(args[0]);

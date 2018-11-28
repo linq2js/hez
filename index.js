@@ -15,15 +15,20 @@ if (!useMemo) {
 }
 
 const defaultSelector = state => state;
-const storeContext = createContext();
+const storeContext = createContext(null);
 const isStoreProp = "@@store";
 
 /**
  * create state manager
  */
-export function createState(initialState = {}, onChange) {
+export function createState(initialState = {}, onChange, injectedProps = {}) {
   let state = initialState;
   let proxyTarget = initialState;
+  const api = {
+    getState,
+    setState,
+    mergeState
+  };
 
   function getState(prop) {
     return arguments.length
@@ -47,11 +52,11 @@ export function createState(initialState = {}, onChange) {
         notify();
       }
     } else {
-      const [nextState] = args;
+      let [nextState] = args;
       // support callback
       // state.set(state => doSomething)
       if (typeof nextState === "function") {
-        return setState(nextState(state));
+        nextState = nextState(state);
       }
       if (state === nextState) {
         return;
@@ -88,6 +93,14 @@ export function createState(initialState = {}, onChange) {
       if (prop === "get") return getState;
       if (prop === "set") return setState;
       if (prop === "merge") return mergeState;
+      if (prop in injectedProps) {
+        const value = injectedProps[prop];
+        // create wrapper for injected method
+        if (typeof value === "function") {
+          return (...args) => value(api, ...args);
+        }
+        return value;
+      }
       return proxyTarget[prop];
     }
   });
@@ -98,6 +111,7 @@ export function createState(initialState = {}, onChange) {
  */
 export function createStore(initialState = {}) {
   const subscribers = [];
+  const stateProps = {};
   let state = initialState;
   let lastDispatchedAction;
   let shouldNotify = false;
@@ -122,10 +136,14 @@ export function createStore(initialState = {}) {
   }
 
   function createStateForAction(action) {
-    return createState(state, nextState => {
-      state = nextState;
-      notify(action.displayName || action.name);
-    });
+    return createState(
+      state,
+      nextState => {
+        state = nextState;
+        notify(action.displayName || action.name);
+      },
+      stateProps
+    );
   }
 
   function dispatch(action, ...args) {
@@ -155,10 +173,18 @@ export function createStore(initialState = {}) {
     subscribers.forEach(subscriber => subscriber(getState(), { action }));
   }
 
+  /**
+   * inject state props
+   */
+  function inject(props) {
+    Object.assign(stateProps, props);
+  }
+
   return {
     getState,
     dispatch,
     subscribe,
+    inject,
     [isStoreProp]: true
   };
 }

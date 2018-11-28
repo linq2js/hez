@@ -252,8 +252,8 @@ import { createStore } from "hez";
 const store = createStore({
   ids: [1, 2],
   todos: {
-    1: "Item 1",
-    2: "Item 2"
+    1: { text: "Item 1" },
+    2: { text: "Item 2" }
   }
 });
 
@@ -310,6 +310,52 @@ const App = () => (
     <Counter />
   </Provider>
 );
+```
+
+## State props injection
+
+You can inject state utilize method by using store.inject
+
+Using immhelper for updating state
+
+```jsx harmony
+import update from "immhelper";
+
+const store = createStore({ todos: [] });
+
+store.inject({
+  update(state, ...args) {
+    const { getState, setState, mergeState } = state;
+    setState(update(getState(), ...args));
+  }
+});
+
+const AddTodo = (state, text) => {
+  state.update({
+    todos: ["push", text]
+  });
+};
+```
+
+Using immer for updating state
+
+```jsx harmony
+import produce from "immer";
+
+const store = createStore({ todos: [] });
+
+store.inject({
+  update(state, modifier) {
+    const { getState, setState, mergeState } = state;
+    setState(produce(getState(), modifier));
+  }
+});
+
+const AddTodo = (state, text) => {
+  state.update(draft => {
+    draft.todos.push(text);
+  });
+};
 ```
 
 ## Unit Test
