@@ -17,28 +17,52 @@ if (!useMemo) {
 const defaultSelector = state => state;
 const storeContext = createContext(null);
 const isStoreProp = "@@store";
+const defaultInjectedProps = {};
+const defaultState = {};
+const noop = () => {};
 
 /**
  * create state manager
  */
-export function createState(initialState = {}, onChange, injectedProps = {}) {
-  let state = initialState;
-  let proxyTarget = initialState;
+export function createState(
+  initialStateOrAccessor = defaultState,
+  onChange,
+  injectedProps = defaultInjectedProps,
+  addActionListener = noop
+) {
+  let localState =
+    typeof initialStateOrAccessor === "function" ? {} : initialStateOrAccessor;
+  const stateAccessor =
+    typeof initialStateOrAccessor === "function"
+      ? initialStateOrAccessor
+      : () => localState;
   const api = {
     getState,
     setState,
-    mergeState
+    mergeState,
+    addActionListener,
+    reduceState
+  };
+
+  const shorthandApi = {
+    get: getState,
+    set: setState,
+    merge: mergeState,
+    on: addActionListener,
+    reduce: reduceState
   };
 
   function getState(prop) {
     return arguments.length
       ? typeof prop === "function"
-        ? prop(state)
-        : state[prop]
-      : state;
+        ? prop(stateAccessor())
+        : stateAccessor()[prop]
+      : stateAccessor();
   }
 
   function setState(...args) {
+    const state = stateAccessor();
+
     if (args.length === 2) {
       // support state prop modifier
       // state.set('count', x => x + 1)
@@ -47,9 +71,11 @@ export function createState(initialState = {}, onChange, injectedProps = {}) {
       const nextValue = modifier(prevValue);
       if (nextValue !== prevValue) {
         // clone current state
-        state = Array.isArray(state) ? state.slice() : Object.assign({}, state);
-        state[prop] = nextValue;
-        notify();
+        const nextState = Array.isArray(state)
+          ? state.slice()
+          : Object.assign({}, state);
+        nextState[prop] = nextValue;
+        notify(nextState);
       }
     } else {
       let [nextState] = args;
@@ -61,17 +87,17 @@ export function createState(initialState = {}, onChange, injectedProps = {}) {
       if (state === nextState) {
         return;
       }
-      state = nextState;
-      notify();
+      notify(nextState);
     }
   }
 
-  function notify() {
-    Object.assign(proxyTarget, state);
+  function notify(state) {
     onChange && onChange(state);
+    localState = state;
   }
 
   function mergeState(nextState) {
+    const state = stateAccessor();
     if (typeof nextState === "function") {
       return mergeState(nextState(state));
     }
@@ -88,22 +114,43 @@ export function createState(initialState = {}, onChange, injectedProps = {}) {
     setState(Object.assign({}, state, nextState));
   }
 
-  return new Proxy(proxyTarget, {
-    get(target, prop) {
-      if (prop === "get") return getState;
-      if (prop === "set") return setState;
-      if (prop === "merge") return mergeState;
-      if (prop in injectedProps) {
-        const value = injectedProps[prop];
-        // create wrapper for injected method
-        if (typeof value === "function") {
-          return (...args) => value(api, ...args);
+  function reduceState(reducers = {}, ...args) {
+    const state = stateAccessor();
+    let nextState = state;
+    Object.keys(reducers).forEach(key => {
+      const reducer = reducers[key];
+      const value = state[key];
+      const nextValue = reducer(value, ...args);
+      if (nextValue !== value) {
+        if (state === nextState) {
+          nextState = Object.assign({}, state);
         }
-        return value;
+        nextState[key] = nextValue;
       }
-      return proxyTarget[prop];
+    });
+
+    setState(nextState);
+  }
+
+  return new Proxy(
+    {},
+    {
+      get(target, prop) {
+        if (prop in shorthandApi) {
+          return shorthandApi[prop];
+        }
+        if (prop in injectedProps) {
+          const value = injectedProps[prop];
+          // create wrapper for injected method
+          if (typeof value === "function") {
+            return (...args) => value(api, ...args);
+          }
+          return value;
+        }
+        return getState(prop);
+      }
     }
-  });
+  );
 }
 
 /**
@@ -112,6 +159,17 @@ export function createState(initialState = {}, onChange, injectedProps = {}) {
 export function createStore(initialState = {}) {
   const subscribers = [];
   const stateProps = {};
+  const middlewares = [];
+  const actionSubscriptions = {};
+  const store = {
+    getState,
+    dispatch,
+    subscribe,
+    inject,
+    use,
+    [isStoreProp]: true
+  };
+  let hasActionSubscription;
   let state = initialState;
   let lastDispatchedAction;
   let shouldNotify = false;
@@ -131,28 +189,75 @@ export function createStore(initialState = {}) {
     };
   }
 
+  function addActionListener(action, handler) {
+    const name = action.displayName || action.name || String(action);
+    if (!(name in actionSubscriptions)) {
+      actionSubscriptions[name] = [];
+      actionSubscriptions[name].map = new WeakMap();
+    }
+
+    const list = actionSubscriptions[name];
+    let unsubscribe = list.map.get(handler);
+    if (unsubscribe) return unsubscribe;
+
+    list.push(handler);
+    hasActionSubscription = true;
+
+    list.map.set(
+      handler,
+      (unsubscribe = () => {
+        const index = list.indexOf(handler);
+        if (index !== -1) {
+          list.splice(index, 1);
+        }
+      })
+    );
+
+    return unsubscribe;
+  }
+
+  function notifyActionDispatch(action, state, result) {
+    if (!hasActionSubscription) return;
+    const name = action.displayName || action.name || String(action);
+    const list = actionSubscriptions[name];
+    list && list.forEach(subscriber => subscriber(state, result));
+  }
+
   function getState() {
     return state;
   }
 
   function createStateForAction(action) {
     return createState(
-      state,
+      getState,
       nextState => {
         state = nextState;
         notify(action.displayName || action.name);
       },
-      stateProps
+      stateProps,
+      addActionListener
     );
   }
 
+  function use(middleware) {
+    middlewares.push(middleware);
+  }
+
   function dispatch(action, ...args) {
+    return middlewares.reduce((next, middleware) => {
+      return (action, ...args) => middleware(next)(action, ...args);
+    }, internalDispatch)(action, ...args);
+  }
+
+  function internalDispatch(action, ...args) {
     dispatchingScopes++;
     try {
       const actions = Array.isArray(action) ? action : [action];
       let lastResult;
       for (const action of actions) {
-        lastResult = action(createStateForAction(action), ...args);
+        const state = createStateForAction(action);
+        lastResult = action(state, ...args);
+        notifyActionDispatch(action, state, lastResult);
       }
       return lastResult;
     } finally {
@@ -180,13 +285,7 @@ export function createStore(initialState = {}) {
     Object.assign(stateProps, props);
   }
 
-  return {
-    getState,
-    dispatch,
-    subscribe,
-    inject,
-    [isStoreProp]: true
-  };
+  return store;
 }
 
 /**

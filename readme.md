@@ -358,6 +358,79 @@ const AddTodo = (state, text) => {
 };
 ```
 
+## Listen another action dispatching
+
+We can add listener which will be called when specified action dispatched. Use to clean up something
+
+```jsx harmony
+const Login = state => {
+  LoadProfile(state);
+  LoadSettings(state);
+};
+
+const Logout = state => {};
+
+const LoadProfile = state => {
+  state.merge({
+    profile: {}
+  });
+
+  state.on(Logout, CleanProfile);
+};
+
+const LoadSettings = state => {
+  state.merge({
+    settings: {}
+  });
+
+  state.on(Logout, CleanSettings);
+};
+
+const CleanProfile = state => {
+  state.merge({
+    profile: undefined
+  });
+};
+
+const CleanSettings = state => {
+  state.merge({
+    settings: undefined
+  });
+};
+```
+
+## Using reducer to update state
+
+```jsx harmony
+const state = createState({
+  todos: []
+});
+const AddTodo1 = (state, text) => {
+  state.reduce({
+    todos: prev => [...prev, text]
+  });
+};
+
+const AddTodo2 = (state, text) => {
+  state.reduce(
+    {
+      todos: TodoReducers
+    },
+    {
+      type: "add",
+      payload: text
+    }
+  );
+};
+
+const TodoReducers = (state, action) => {
+  if (action.type === "add") {
+    return [...state, action.payload];
+  }
+  return state;
+};
+```
+
 ## Unit Test
 
 ```jsx harmony
@@ -371,3 +444,5 @@ test("should increase count value by 1", () => {
   expect(state.count).toBe(1);
 });
 ```
+
+## Todo App

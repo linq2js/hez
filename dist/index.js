@@ -28,28 +28,46 @@ var defaultSelector = function defaultSelector(state) {
 };
 var storeContext = (0, _react.createContext)(null);
 var isStoreProp = "@@store";
+var defaultInjectedProps = {};
+var defaultState = {};
+var noop = function noop() {};
 
 /**
  * create state manager
  */
 function createState() {
-  var initialState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+  var initialStateOrAccessor = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultState;
   var onChange = arguments[1];
-  var injectedProps = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var injectedProps = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : defaultInjectedProps;
+  var addActionListener = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : noop;
 
-  var state = initialState;
-  var proxyTarget = initialState;
+  var localState = typeof initialStateOrAccessor === "function" ? {} : initialStateOrAccessor;
+  var stateAccessor = typeof initialStateOrAccessor === "function" ? initialStateOrAccessor : function () {
+    return localState;
+  };
   var api = {
     getState: getState,
     setState: setState,
-    mergeState: mergeState
+    mergeState: mergeState,
+    addActionListener: addActionListener,
+    reduceState: reduceState
+  };
+
+  var shorthandApi = {
+    get: getState,
+    set: setState,
+    merge: mergeState,
+    on: addActionListener,
+    reduce: reduceState
   };
 
   function getState(prop) {
-    return arguments.length ? typeof prop === "function" ? prop(state) : state[prop] : state;
+    return arguments.length ? typeof prop === "function" ? prop(stateAccessor()) : stateAccessor()[prop] : stateAccessor();
   }
 
   function setState() {
+    var state = stateAccessor();
+
     for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
       args[_key] = arguments[_key];
     }
@@ -64,32 +82,32 @@ function createState() {
       var nextValue = modifier(prevValue);
       if (nextValue !== prevValue) {
         // clone current state
-        state = Array.isArray(state) ? state.slice() : Object.assign({}, state);
-        state[prop] = nextValue;
-        notify();
+        var nextState = Array.isArray(state) ? state.slice() : Object.assign({}, state);
+        nextState[prop] = nextValue;
+        notify(nextState);
       }
     } else {
-      var nextState = args[0];
+      var _nextState = args[0];
       // support callback
       // state.set(state => doSomething)
 
-      if (typeof nextState === "function") {
-        nextState = nextState(state);
+      if (typeof _nextState === "function") {
+        _nextState = _nextState(state);
       }
-      if (state === nextState) {
+      if (state === _nextState) {
         return;
       }
-      state = nextState;
-      notify();
+      notify(_nextState);
     }
   }
 
-  function notify() {
-    Object.assign(proxyTarget, state);
+  function notify(state) {
     onChange && onChange(state);
+    localState = state;
   }
 
   function mergeState(nextState) {
+    var state = stateAccessor();
     if (typeof nextState === "function") {
       return mergeState(nextState(state));
     }
@@ -106,18 +124,42 @@ function createState() {
     setState(Object.assign({}, state, nextState));
   }
 
-  return new Proxy(proxyTarget, {
+  function reduceState() {
+    for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+      args[_key2 - 1] = arguments[_key2];
+    }
+
+    var reducers = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+    var state = stateAccessor();
+    var nextState = state;
+    Object.keys(reducers).forEach(function (key) {
+      var reducer = reducers[key];
+      var value = state[key];
+      var nextValue = reducer.apply(undefined, [value].concat(args));
+      if (nextValue !== value) {
+        if (state === nextState) {
+          nextState = Object.assign({}, state);
+        }
+        nextState[key] = nextValue;
+      }
+    });
+
+    setState(nextState);
+  }
+
+  return new Proxy({}, {
     get: function get(target, prop) {
-      if (prop === "get") return getState;
-      if (prop === "set") return setState;
-      if (prop === "merge") return mergeState;
+      if (prop in shorthandApi) {
+        return shorthandApi[prop];
+      }
       if (prop in injectedProps) {
         var value = injectedProps[prop];
         // create wrapper for injected method
         if (typeof value === "function") {
           return function () {
-            for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-              args[_key2] = arguments[_key2];
+            for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+              args[_key3] = arguments[_key3];
             }
 
             return value.apply(undefined, [api].concat(args));
@@ -125,7 +167,7 @@ function createState() {
         }
         return value;
       }
-      return proxyTarget[prop];
+      return getState(prop);
     }
   });
 }
@@ -138,6 +180,16 @@ function createStore() {
 
   var subscribers = [];
   var stateProps = {};
+  var middlewares = [];
+  var actionSubscriptions = {};
+  var store = _defineProperty({
+    getState: getState,
+    dispatch: dispatch,
+    subscribe: subscribe,
+    inject: inject,
+    use: use
+  }, isStoreProp, true);
+  var hasActionSubscription = void 0;
   var state = initialState;
   var lastDispatchedAction = void 0;
   var shouldNotify = false;
@@ -157,25 +209,78 @@ function createStore() {
     };
   }
 
+  function addActionListener(action, handler) {
+    var name = action.displayName || action.name || String(action);
+    if (!(name in actionSubscriptions)) {
+      actionSubscriptions[name] = [];
+      actionSubscriptions[name].map = new WeakMap();
+    }
+
+    var list = actionSubscriptions[name];
+    var unsubscribe = list.map.get(handler);
+    if (unsubscribe) return unsubscribe;
+
+    list.push(handler);
+    hasActionSubscription = true;
+
+    list.map.set(handler, unsubscribe = function unsubscribe() {
+      var index = list.indexOf(handler);
+      if (index !== -1) {
+        list.splice(index, 1);
+      }
+    });
+
+    return unsubscribe;
+  }
+
+  function notifyActionDispatch(action, state, result) {
+    if (!hasActionSubscription) return;
+    var name = action.displayName || action.name || String(action);
+    var list = actionSubscriptions[name];
+    list && list.forEach(function (subscriber) {
+      return subscriber(state, result);
+    });
+  }
+
   function getState() {
     return state;
   }
 
   function createStateForAction(action) {
-    return createState(state, function (nextState) {
+    return createState(getState, function (nextState) {
       state = nextState;
       notify(action.displayName || action.name);
-    }, stateProps);
+    }, stateProps, addActionListener);
+  }
+
+  function use(middleware) {
+    middlewares.push(middleware);
   }
 
   function dispatch(action) {
+    for (var _len4 = arguments.length, args = Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
+      args[_key4 - 1] = arguments[_key4];
+    }
+
+    return middlewares.reduce(function (next, middleware) {
+      return function (action) {
+        for (var _len5 = arguments.length, args = Array(_len5 > 1 ? _len5 - 1 : 0), _key5 = 1; _key5 < _len5; _key5++) {
+          args[_key5 - 1] = arguments[_key5];
+        }
+
+        return middleware(next).apply(undefined, [action].concat(args));
+      };
+    }, internalDispatch).apply(undefined, [action].concat(args));
+  }
+
+  function internalDispatch(action) {
     dispatchingScopes++;
     try {
       var actions = Array.isArray(action) ? action : [action];
       var lastResult = void 0;
 
-      for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
-        args[_key3 - 1] = arguments[_key3];
+      for (var _len6 = arguments.length, args = Array(_len6 > 1 ? _len6 - 1 : 0), _key6 = 1; _key6 < _len6; _key6++) {
+        args[_key6 - 1] = arguments[_key6];
       }
 
       var _iteratorNormalCompletion = true;
@@ -186,7 +291,9 @@ function createStore() {
         for (var _iterator = actions[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
           var _action = _step.value;
 
-          lastResult = _action.apply(undefined, [createStateForAction(_action)].concat(args));
+          var _state = createStateForAction(_action);
+          lastResult = _action.apply(undefined, [_state].concat(args));
+          notifyActionDispatch(_action, _state, lastResult);
         }
       } catch (err) {
         _didIteratorError = true;
@@ -231,12 +338,7 @@ function createStore() {
     Object.assign(stateProps, props);
   }
 
-  return _defineProperty({
-    getState: getState,
-    dispatch: dispatch,
-    subscribe: subscribe,
-    inject: inject
-  }, isStoreProp, true);
+  return store;
 }
 
 /**
@@ -244,15 +346,15 @@ function createStore() {
  * useActions(...actions)
  */
 var useActions = exports.useActions = createStoreUtility(function (store) {
-  for (var _len4 = arguments.length, actions = Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
-    actions[_key4 - 1] = arguments[_key4];
+  for (var _len7 = arguments.length, actions = Array(_len7 > 1 ? _len7 - 1 : 0), _key7 = 1; _key7 < _len7; _key7++) {
+    actions[_key7 - 1] = arguments[_key7];
   }
 
   return (0, _react.useMemo)(function () {
     return actions.map(function (action) {
       return function () {
-        for (var _len5 = arguments.length, args = Array(_len5), _key5 = 0; _key5 < _len5; _key5++) {
-          args[_key5] = arguments[_key5];
+        for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
+          args[_key8] = arguments[_key8];
         }
 
         return store.dispatch.apply(store, [action].concat(args));
@@ -266,8 +368,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
  * useStore(selector, ...cacheKeys)
  */
 var useStore = exports.useStore = createStoreUtility(function (store) {
-  for (var _len6 = arguments.length, cacheKeys = Array(_len6 > 2 ? _len6 - 2 : 0), _key6 = 2; _key6 < _len6; _key6++) {
-    cacheKeys[_key6 - 2] = arguments[_key6];
+  for (var _len9 = arguments.length, cacheKeys = Array(_len9 > 2 ? _len9 - 2 : 0), _key9 = 2; _key9 < _len9; _key9++) {
+    cacheKeys[_key9 - 2] = arguments[_key9];
   }
 
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
@@ -298,8 +400,8 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
  * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
  */
 var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, cacheKeysSelector) {
-  for (var _len7 = arguments.length, extraCacheKeys = Array(_len7 > 3 ? _len7 - 3 : 0), _key7 = 3; _key7 < _len7; _key7++) {
-    extraCacheKeys[_key7 - 3] = arguments[_key7];
+  for (var _len10 = arguments.length, extraCacheKeys = Array(_len10 > 3 ? _len10 - 3 : 0), _key10 = 3; _key10 < _len10; _key10++) {
+    extraCacheKeys[_key10 - 3] = arguments[_key10];
   }
 
   var stateSelector = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (state) {
@@ -309,8 +411,8 @@ var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, ca
   if (Array.isArray(cacheKeysSelector)) {
     var selectors = cacheKeysSelector;
     cacheKeysSelector = function cacheKeysSelector() {
-      for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
-        args[_key8] = arguments[_key8];
+      for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
+        args[_key11] = arguments[_key11];
       }
 
       return selectors.map(function (selector) {
@@ -340,9 +442,9 @@ var withState = exports.withState = createStoreHoc(function (Component, props, i
  * withActions(store, actions)
  * withActions(actions)
  */
-var withActions = exports.withActions = createStoreHoc(function (Component, props, _ref2, store) {
-  var keys = _ref2.keys,
-      values = _ref2.values;
+var withActions = exports.withActions = createStoreHoc(function (Component, props, _ref, store) {
+  var keys = _ref.keys,
+      values = _ref.values;
 
   var nextProps = {};
   var mappedActions = useActions.apply(undefined, [store].concat(_toConsumableArray(values)));
@@ -358,8 +460,8 @@ var withActions = exports.withActions = createStoreHoc(function (Component, prop
 });
 
 function compose() {
-  for (var _len9 = arguments.length, functions = Array(_len9), _key9 = 0; _key9 < _len9; _key9++) {
-    functions[_key9] = arguments[_key9];
+  for (var _len12 = arguments.length, functions = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
+    functions[_key12] = arguments[_key12];
   }
 
   if (functions.length === 0) {
@@ -380,8 +482,8 @@ function compose() {
 }
 
 function hoc() {
-  for (var _len10 = arguments.length, callbacks = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
-    callbacks[_key10] = arguments[_key10];
+  for (var _len13 = arguments.length, callbacks = Array(_len13), _key13 = 0; _key13 < _len13; _key13++) {
+    callbacks[_key13] = arguments[_key13];
   }
 
   return callbacks.reduce(function (nextHoc, callback) {
@@ -406,17 +508,17 @@ function hoc() {
   });
 }
 
-function Provider(_ref3) {
-  var store = _ref3.store,
-      children = _ref3.children;
+function Provider(_ref2) {
+  var store = _ref2.store,
+      children = _ref2.children;
 
   return (0, _react.createElement)(storeContext.Provider, { value: store, children: children });
 }
 
 function createStoreUtility(callback) {
   return function () {
-    for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
-      args[_key11] = arguments[_key11];
+    for (var _len14 = arguments.length, args = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
+      args[_key14] = arguments[_key14];
     }
 
     var store = (0, _react.useContext)(storeContext);
@@ -429,8 +531,8 @@ function createStoreUtility(callback) {
 
 function createStoreHoc(callback, initializer) {
   return function () {
-    for (var _len12 = arguments.length, args = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
-      args[_key12] = arguments[_key12];
+    for (var _len15 = arguments.length, args = Array(_len15), _key15 = 0; _key15 < _len15; _key15++) {
+      args[_key15] = arguments[_key15];
     }
 
     var hasStore = isStore(args[0]);
