@@ -298,16 +298,13 @@ export function createStore(initialState = {}) {
  * useActions(...actions)
  */
 export const useActions = createStoreUtility((store, ...actions) => {
-  return useMemo(
-    () =>
-      actions
-        .map(action =>
-          action[isActionGroupProp] ? action[acceptedActionsProp] : [action]
-        )
-        .flat()
-        .map(action => (...args) => store.dispatch(action, ...args)),
-    [store].concat(actions)
-  );
+  return useMemo(() => {
+    if (actions[0][isActionGroupProp]) {
+      const actionGroup = actions[0];
+      return actions.slice(1).map(actionType => actionGroup[actionType]);
+    }
+    return actions.map(action => (...args) => store.dispatch(action, ...args));
+  }, [store].concat(actions));
 });
 
 /**
@@ -463,23 +460,12 @@ export function createActionGroup(...args) {
   }
 
   const actionCache = {};
-  const acceptedActions = accept.map(type => {
-    return (actionCache[type] = createAction(name, reducer, type));
-  });
 
   return new Proxy(
     {},
     {
       get(target, prop) {
         if (prop === isActionGroupProp) return true;
-        if (prop === acceptedActionsProp) {
-          if (!accept.length) {
-            throw new Error(
-              "No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)"
-            );
-          }
-          return acceptedActions;
-        }
         if (prop in actionCache) {
           return actionCache[prop];
         }

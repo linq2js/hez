@@ -357,9 +357,13 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
   }
 
   return (0, _react.useMemo)(function () {
+    if (actions[0][isActionGroupProp]) {
+      var actionGroup = actions[0];
+      return actions.slice(1).map(function (actionType) {
+        return actionGroup[actionType];
+      });
+    }
     return actions.map(function (action) {
-      return action[isActionGroupProp] ? action[acceptedActionsProp] : [action];
-    }).flat().map(function (action) {
       return function () {
         for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
           args[_key8] = arguments[_key8];
@@ -562,19 +566,10 @@ function createActionGroup() {
   }
 
   var actionCache = {};
-  var acceptedActions = accept.map(function (type) {
-    return actionCache[type] = createAction(name, reducer, type);
-  });
 
   return new Proxy({}, {
     get: function get(target, prop) {
       if (prop === isActionGroupProp) return true;
-      if (prop === acceptedActionsProp) {
-        if (!accept.length) {
-          throw new Error("No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)");
-        }
-        return acceptedActions;
-      }
       if (prop in actionCache) {
         return actionCache[prop];
       }

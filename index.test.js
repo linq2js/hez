@@ -59,27 +59,3 @@ test("should receive an error when trying to access un-accepted action", () => {
     "No action myAction is defined in this action group"
   );
 });
-
-test("should receive an error when trying to access accepted actions if no accept argument specified", () => {
-  const actionGroup = createActionGroup("ActionGroup", {});
-
-  const callback = () => {
-    const actions = actionGroup["@@acceptedActions"];
-  };
-
-  expect(callback).toThrowError(
-    "No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)"
-  );
-});
-
-test("should receive array of function when trying to access @@acceptedActions", () => {
-  const actionGroup = createActionGroup(
-    "ActionGroup",
-    ["AcceptedA", "AcceptedB"],
-    {}
-  );
-
-  expect(
-    actionGroup["@@acceptedActions"].every(x => typeof x === "function")
-  ).toBe(true);
-});

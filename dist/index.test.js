@@ -78,22 +78,4 @@ test("should receive an error when trying to access un-accepted action", functio
 
   expect(callback).toThrowError("No action myAction is defined in this action group");
 });
-
-test("should receive an error when trying to access accepted actions if no accept argument specified", function () {
-  var actionGroup = (0, _index.createActionGroup)("ActionGroup", {});
-
-  var callback = function callback() {
-    var actions = actionGroup["@@acceptedActions"];
-  };
-
-  expect(callback).toThrowError("No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)");
-});
-
-test("should receive array of function when trying to access @@acceptedActions", function () {
-  var actionGroup = (0, _index.createActionGroup)("ActionGroup", ["AcceptedA", "AcceptedB"], {});
-
-  expect(actionGroup["@@acceptedActions"].every(function (x) {
-    return typeof x === "function";
-  })).toBe(true);
-});
 //# sourceMappingURL=index.test.js.map
