@@ -194,7 +194,8 @@ export function createStore(initialState = {}) {
   }
 
   function addActionListener(action, handler) {
-    const name = action.displayName || action.name || String(action);
+    const name =
+      typeof action === "function" ? getType(action) : String(action);
     if (!(name in actionSubscriptions)) {
       actionSubscriptions[name] = [];
       actionSubscriptions[name].map = new WeakMap();
@@ -222,7 +223,8 @@ export function createStore(initialState = {}) {
 
   function notifyActionDispatch(action, state, result) {
     if (!hasActionSubscription) return;
-    const name = action.displayName || action.name || String(action);
+    const name =
+      typeof action === "function" ? getType(action) : String(action);
     const list = actionSubscriptions[name];
     list && list.forEach(subscriber => subscriber(state, result));
   }
@@ -236,7 +238,7 @@ export function createStore(initialState = {}) {
       getState,
       nextState => {
         state = nextState;
-        notify(action.displayName || action.name);
+        notify(getType(action));
       },
       stateProps,
       addActionListener
@@ -444,21 +446,21 @@ export function createActionGroup(...args) {
     } else {
       // createActionGroup(accept, reducer)
       if (Array.isArray(args[0])) {
-        name = "@@reducer_" + generateId();
+        name = "@@action_group_" + generateId();
         accept = args[0];
         reducer = args[1];
       } else {
         // createActionGroup(name, reducer)
-        accept = [];
         name = args[0];
         reducer = args[1];
+        accept = typeof reducer === "function" ? [] : Object.keys(reducer);
       }
     }
   } else {
     // createActionGroup(reducer)
-    name = "@@reducer_" + generateId();
+    name = "@@action_group_" + generateId();
     reducer = args[0];
-    accept = [];
+    accept = typeof reducer === "function" ? [] : Object.keys(reducer);
   }
 
   const actionCache = {};
@@ -484,6 +486,17 @@ export function createActionGroup(...args) {
       }
     }
   );
+}
+
+export function getType(action) {
+  if (typeof action !== "function") {
+    throw new Error("Invalid action. Action should be function type");
+  }
+  if (!action.displayName && action.name) {
+    action.displayName = "@@action_" + generateId();
+  }
+
+  return action.displayName;
 }
 
 function createAction(name, reducer, prop) {

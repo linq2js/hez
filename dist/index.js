@@ -13,6 +13,7 @@ exports.compose = compose;
 exports.hoc = hoc;
 exports.Provider = Provider;
 exports.createActionGroup = createActionGroup;
+exports.getType = getType;
 
 var _react = require("react");
 
@@ -215,7 +216,7 @@ function createStore() {
   }
 
   function addActionListener(action, handler) {
-    var name = action.displayName || action.name || String(action);
+    var name = typeof action === "function" ? getType(action) : String(action);
     if (!(name in actionSubscriptions)) {
       actionSubscriptions[name] = [];
       actionSubscriptions[name].map = new WeakMap();
@@ -240,7 +241,7 @@ function createStore() {
 
   function notifyActionDispatch(action, state, result) {
     if (!hasActionSubscription) return;
-    var name = action.displayName || action.name || String(action);
+    var name = typeof action === "function" ? getType(action) : String(action);
     var list = actionSubscriptions[name];
     list && list.forEach(function (subscriber) {
       return subscriber(state, result);
@@ -254,7 +255,7 @@ function createStore() {
   function createStateForAction(action) {
     return createState(getState, function (nextState) {
       state = nextState;
-      notify(action.displayName || action.name);
+      notify(getType(action));
     }, stateProps, addActionListener);
   }
 
@@ -554,21 +555,21 @@ function createActionGroup() {
     } else {
       // createActionGroup(accept, reducer)
       if (Array.isArray(arguments.length <= 0 ? undefined : arguments[0])) {
-        name = "@@reducer_" + generateId();
+        name = "@@action_group_" + generateId();
         accept = arguments.length <= 0 ? undefined : arguments[0];
         reducer = arguments.length <= 1 ? undefined : arguments[1];
       } else {
         // createActionGroup(name, reducer)
-        accept = [];
         name = arguments.length <= 0 ? undefined : arguments[0];
         reducer = arguments.length <= 1 ? undefined : arguments[1];
+        accept = typeof reducer === "function" ? [] : Object.keys(reducer);
       }
     }
   } else {
     // createActionGroup(reducer)
-    name = "@@reducer_" + generateId();
+    name = "@@action_group_" + generateId();
     reducer = arguments.length <= 0 ? undefined : arguments[0];
-    accept = [];
+    accept = typeof reducer === "function" ? [] : Object.keys(reducer);
   }
 
   var actionCache = {};
@@ -587,6 +588,17 @@ function createActionGroup() {
       return actionCache[prop] = createAction(name, typeof reducer === "function" ? reducer : reducer[prop], prop);
     }
   });
+}
+
+function getType(action) {
+  if (typeof action !== "function") {
+    throw new Error("Invalid action. Action should be function type");
+  }
+  if (!action.displayName && action.name) {
+    action.displayName = "@@action_" + generateId();
+  }
+
+  return action.displayName;
 }
 
 function createAction(name, reducer, prop) {
