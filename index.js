@@ -20,6 +20,7 @@ const isStoreProp = "@@store";
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
+let uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
  * create state manager
@@ -415,6 +416,47 @@ export function Provider({ store, children }) {
   return createElement(storeContext.Provider, { value: store, children });
 }
 
+export function createActionGroup(...args) {
+  let name, reducer;
+  if (args.length > 1) {
+    name = args[0];
+    reducer = args[1];
+  } else {
+    name = "@@reducer_" + generateId();
+    reducer = args[0];
+  }
+
+  const actionCache = {};
+
+  return new Proxy(
+    {},
+    {
+      get(target, prop) {
+        if (prop in actionCache) {
+          return actionCache[prop];
+        }
+
+        return (actionCache[prop] = createAction(name, reducer, prop));
+      }
+    }
+  );
+}
+
+function createAction(name, reducer, prop) {
+  const action =
+    typeof reducer === "function"
+      ? (state, payload) => {
+          const prev = state.get();
+          const next = reducer(prev, { type: prop, payload });
+          if (next !== prev) {
+            state.set(next);
+          }
+        }
+      : (state, payload) => state.reduce(reducer, { type: prop, payload });
+  action.displayName = name + "." + prop;
+  return action;
+}
+
 function createStoreUtility(callback) {
   return (...args) => {
     const store = useContext(storeContext);
@@ -449,4 +491,8 @@ function createStoreHoc(callback, initializer) {
 
 function isStore(obj) {
   return obj && obj[isStoreProp];
+}
+
+function generateId() {
+  return uniqueId++;
 }

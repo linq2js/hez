@@ -12,6 +12,7 @@ exports.createStore = createStore;
 exports.compose = compose;
 exports.hoc = hoc;
 exports.Provider = Provider;
+exports.createActionGroup = createActionGroup;
 
 var _react = require("react");
 
@@ -31,6 +32,7 @@ var isStoreProp = "@@store";
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
+var uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
  * create state manager
@@ -515,6 +517,44 @@ function Provider(_ref2) {
   return (0, _react.createElement)(storeContext.Provider, { value: store, children: children });
 }
 
+function createActionGroup() {
+  var name = void 0,
+      reducer = void 0;
+  if (arguments.length > 1) {
+    name = arguments.length <= 0 ? undefined : arguments[0];
+    reducer = arguments.length <= 1 ? undefined : arguments[1];
+  } else {
+    name = "@@reducer_" + generateId();
+    reducer = arguments.length <= 0 ? undefined : arguments[0];
+  }
+
+  var actionCache = {};
+
+  return new Proxy({}, {
+    get: function get(target, prop) {
+      if (prop in actionCache) {
+        return actionCache[prop];
+      }
+
+      return actionCache[prop] = createAction(name, reducer, prop);
+    }
+  });
+}
+
+function createAction(name, reducer, prop) {
+  var action = typeof reducer === "function" ? function (state, payload) {
+    var prev = state.get();
+    var next = reducer(prev, { type: prop, payload: payload });
+    if (next !== prev) {
+      state.set(next);
+    }
+  } : function (state, payload) {
+    return state.reduce(reducer, { type: prop, payload: payload });
+  };
+  action.displayName = name + "." + prop;
+  return action;
+}
+
 function createStoreUtility(callback) {
   return function () {
     for (var _len14 = arguments.length, args = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
@@ -551,5 +591,9 @@ function createStoreHoc(callback, initializer) {
 
 function isStore(obj) {
   return obj && obj[isStoreProp];
+}
+
+function generateId() {
+  return uniqueId++;
 }
 //# sourceMappingURL=index.js.map
