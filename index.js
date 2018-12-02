@@ -433,35 +433,17 @@ export function Provider({ store, children }) {
 /***
  * createActionGroup(accept, reducer)
  * createActionGroup(reducer)
- * createActionGroup(name, accept, reducer)
- * createActionGroup(name, reducer)
  * @param args
  * @return {*}
  */
 export function createActionGroup(...args) {
-  let name, reducer, accept;
+  let reducer, accept;
+  // createActionGroup(accept, reducer)
   if (args.length > 1) {
-    // createActionGroup(name, accept, reducer)
-    if (Array.isArray(args[1])) {
-      name = args[0];
-      accept = args[1];
-      reducer = args[2];
-    } else {
-      // createActionGroup(accept, reducer)
-      if (Array.isArray(args[0])) {
-        name = "@@action_group_" + generateId();
-        accept = args[0];
-        reducer = args[1];
-      } else {
-        // createActionGroup(name, reducer)
-        name = args[0];
-        reducer = args[1];
-        accept = typeof reducer === "function" ? [] : Object.keys(reducer);
-      }
-    }
+    accept = args[0];
+    reducer = args[1];
   } else {
     // createActionGroup(reducer)
-    name = "@@action_group_" + generateId();
     reducer = args[0];
     accept = typeof reducer === "function" ? [] : Object.keys(reducer);
   }
@@ -482,7 +464,6 @@ export function createActionGroup(...args) {
         }
 
         return (actionCache[prop] = createAction(
-          name,
           typeof reducer === "function" ? reducer : reducer[prop],
           prop
         ));
@@ -502,7 +483,7 @@ export function getType(action) {
   return action.displayName;
 }
 
-function createAction(name, reducer, prop) {
+function createAction(reducer, prop) {
   const action =
     typeof reducer === "function"
       ? (state, payload) => {
@@ -513,7 +494,7 @@ function createAction(name, reducer, prop) {
           }
         }
       : (state, payload) => state.reduce(reducer, { type: prop, payload });
-  action.displayName = name + "." + prop;
+  action.displayName = prop;
   return action;
 }
 

@@ -44,10 +44,10 @@ test("should call reducer properly", () => {
 });
 
 test("should receive action(Function) for dynamic action creating", () => {
-  const actionGroup = createActionGroup("ActionGroup", {});
+  const actionGroup = createActionGroup({});
 
   expect(typeof actionGroup.myAction).toBe("function");
-  expect(actionGroup.myAction.displayName).toBe("ActionGroup.myAction");
+  expect(actionGroup.myAction.displayName).toBe("myAction");
 });
 
 test("should receive an error when trying to access un-accepted action", () => {

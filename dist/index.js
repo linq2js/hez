@@ -540,37 +540,18 @@ function Provider(_ref2) {
 /***
  * createActionGroup(accept, reducer)
  * createActionGroup(reducer)
- * createActionGroup(name, accept, reducer)
- * createActionGroup(name, reducer)
  * @param args
  * @return {*}
  */
 function createActionGroup() {
-  var name = void 0,
-      reducer = void 0,
+  var reducer = void 0,
       accept = void 0;
+  // createActionGroup(accept, reducer)
   if (arguments.length > 1) {
-    // createActionGroup(name, accept, reducer)
-    if (Array.isArray(arguments.length <= 1 ? undefined : arguments[1])) {
-      name = arguments.length <= 0 ? undefined : arguments[0];
-      accept = arguments.length <= 1 ? undefined : arguments[1];
-      reducer = arguments.length <= 2 ? undefined : arguments[2];
-    } else {
-      // createActionGroup(accept, reducer)
-      if (Array.isArray(arguments.length <= 0 ? undefined : arguments[0])) {
-        name = "@@action_group_" + generateId();
-        accept = arguments.length <= 0 ? undefined : arguments[0];
-        reducer = arguments.length <= 1 ? undefined : arguments[1];
-      } else {
-        // createActionGroup(name, reducer)
-        name = arguments.length <= 0 ? undefined : arguments[0];
-        reducer = arguments.length <= 1 ? undefined : arguments[1];
-        accept = typeof reducer === "function" ? [] : Object.keys(reducer);
-      }
-    }
+    accept = arguments.length <= 0 ? undefined : arguments[0];
+    reducer = arguments.length <= 1 ? undefined : arguments[1];
   } else {
     // createActionGroup(reducer)
-    name = "@@action_group_" + generateId();
     reducer = arguments.length <= 0 ? undefined : arguments[0];
     accept = typeof reducer === "function" ? [] : Object.keys(reducer);
   }
@@ -588,7 +569,7 @@ function createActionGroup() {
         throw new Error("No action " + prop + " is defined in this action group");
       }
 
-      return actionCache[prop] = createAction(name, typeof reducer === "function" ? reducer : reducer[prop], prop);
+      return actionCache[prop] = createAction(typeof reducer === "function" ? reducer : reducer[prop], prop);
     }
   });
 }
@@ -604,7 +585,7 @@ function getType(action) {
   return action.displayName;
 }
 
-function createAction(name, reducer, prop) {
+function createAction(reducer, prop) {
   var action = typeof reducer === "function" ? function (state, payload) {
     var prev = state.get();
     var next = reducer(prev, { type: prop, payload: payload });
@@ -614,7 +595,7 @@ function createAction(name, reducer, prop) {
   } : function (state, payload) {
     return state.reduce(reducer, { type: prop, payload: payload });
   };
-  action.displayName = name + "." + prop;
+  action.displayName = prop;
   return action;
 }
 
