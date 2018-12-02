@@ -303,13 +303,38 @@ export function createStore(initialState = {}) {
  */
 export const useActions = createStoreUtility((store, ...actions) => {
   return useMemo(() => {
-    if (actions[0][objectTypeProp] === objectTypes.actionGroup) {
+    if (typeof actions[0] !== "function") {
       const actionGroup = actions[0];
+      const isReducerGroup = Object.keys(actionGroup).every(
+        key => typeof actionGroup[key] === "function"
+      );
+      const cachedActions = {};
       return actions.slice(1).map(actionType => {
-        const action = actionGroup[actionType];
-        return (...args) => store.dispatch(action, ...args);
+        return payload => {
+          if (!(actionType in cachedActions)) {
+            const action = actionGroup[actionType];
+            // actionGroup contains multiple reducers
+            // { prop1: reducer1, prop2: reducer2 }
+            if (isReducerGroup) {
+              cachedActions[actionType] = (state, payload) => {
+                state.reduce(actionGroup, {
+                  type: actionType,
+                  payload
+                });
+              };
+            } else {
+              cachedActions[actionType] = (state, payload) => {
+                state.reduce(action, { type: actionType, payload });
+              };
+            }
+            cachedActions[actionType].displayName = actionType;
+          }
+
+          return store.dispatch(cachedActions[actionType], payload);
+        };
       });
     }
+
     return actions.map(action => (...args) => store.dispatch(action, ...args));
   }, [store].concat(actions));
 });
@@ -430,46 +455,8 @@ export function Provider({ store, children }) {
   return createElement(storeContext.Provider, { value: store, children });
 }
 
-/***
- * createActionGroup(accept, reducer)
- * createActionGroup(reducer)
- * @param args
- * @return {*}
- */
-export function createActionGroup(...args) {
-  let reducer, accept;
-  // createActionGroup(accept, reducer)
-  if (args.length > 1) {
-    accept = args[0];
-    reducer = args[1];
-  } else {
-    // createActionGroup(reducer)
-    reducer = args[0];
-    accept = typeof reducer === "function" ? [] : Object.keys(reducer);
-  }
-
-  const actionCache = {};
-
-  return new Proxy(
-    {},
-    {
-      get(target, prop) {
-        if (prop === objectTypeProp) return objectTypes.actionGroup;
-        if (prop in actionCache) {
-          return actionCache[prop];
-        }
-
-        if (accept.length && !accept.includes(prop)) {
-          throw new Error(`No action ${prop} is defined in this action group`);
-        }
-
-        return (actionCache[prop] = createAction(
-          typeof reducer === "function" ? reducer : reducer[prop],
-          prop
-        ));
-      }
-    }
-  );
+export function createActionGroup(actions) {
+  return actions;
 }
 
 export function getType(action) {
@@ -481,21 +468,6 @@ export function getType(action) {
   }
 
   return action.displayName;
-}
-
-function createAction(reducer, prop) {
-  const action =
-    typeof reducer === "function"
-      ? (state, payload) => {
-          const prev = state.get();
-          const next = reducer(prev, { type: prop, payload });
-          if (next !== prev) {
-            state.set(next);
-          }
-        }
-      : (state, payload) => state.reduce(reducer, { type: prop, payload });
-  action.displayName = prop;
-  return action;
 }
 
 function createStoreUtility(callback) {

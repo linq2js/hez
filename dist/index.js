@@ -360,23 +360,42 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
   }
 
   return (0, _react.useMemo)(function () {
-    if (actions[0][objectTypeProp] === objectTypes.actionGroup) {
+    if (typeof actions[0] !== "function") {
       var actionGroup = actions[0];
+      var isReducerGroup = Object.keys(actionGroup).every(function (key) {
+        return typeof actionGroup[key] === "function";
+      });
+      var cachedActions = {};
       return actions.slice(1).map(function (actionType) {
-        var action = actionGroup[actionType];
-        return function () {
-          for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
-            args[_key8] = arguments[_key8];
+        return function (payload) {
+          if (!(actionType in cachedActions)) {
+            var action = actionGroup[actionType];
+            // actionGroup contains multiple reducers
+            // { prop1: reducer1, prop2: reducer2 }
+            if (isReducerGroup) {
+              cachedActions[actionType] = function (state, payload) {
+                state.reduce(actionGroup, {
+                  type: actionType,
+                  payload: payload
+                });
+              };
+            } else {
+              cachedActions[actionType] = function (state, payload) {
+                state.reduce(action, { type: actionType, payload: payload });
+              };
+            }
+            cachedActions[actionType].displayName = actionType;
           }
 
-          return store.dispatch.apply(store, [action].concat(args));
+          return store.dispatch(cachedActions[actionType], payload);
         };
       });
     }
+
     return actions.map(function (action) {
       return function () {
-        for (var _len9 = arguments.length, args = Array(_len9), _key9 = 0; _key9 < _len9; _key9++) {
-          args[_key9] = arguments[_key9];
+        for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
+          args[_key8] = arguments[_key8];
         }
 
         return store.dispatch.apply(store, [action].concat(args));
@@ -390,8 +409,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
  * useStore(selector, ...cacheKeys)
  */
 var useStore = exports.useStore = createStoreUtility(function (store) {
-  for (var _len10 = arguments.length, cacheKeys = Array(_len10 > 2 ? _len10 - 2 : 0), _key10 = 2; _key10 < _len10; _key10++) {
-    cacheKeys[_key10 - 2] = arguments[_key10];
+  for (var _len9 = arguments.length, cacheKeys = Array(_len9 > 2 ? _len9 - 2 : 0), _key9 = 2; _key9 < _len9; _key9++) {
+    cacheKeys[_key9 - 2] = arguments[_key9];
   }
 
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
@@ -422,8 +441,8 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
  * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
  */
 var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, cacheKeysSelector) {
-  for (var _len11 = arguments.length, extraCacheKeys = Array(_len11 > 3 ? _len11 - 3 : 0), _key11 = 3; _key11 < _len11; _key11++) {
-    extraCacheKeys[_key11 - 3] = arguments[_key11];
+  for (var _len10 = arguments.length, extraCacheKeys = Array(_len10 > 3 ? _len10 - 3 : 0), _key10 = 3; _key10 < _len10; _key10++) {
+    extraCacheKeys[_key10 - 3] = arguments[_key10];
   }
 
   var stateSelector = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (state) {
@@ -433,8 +452,8 @@ var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, ca
   if (Array.isArray(cacheKeysSelector)) {
     var selectors = cacheKeysSelector;
     cacheKeysSelector = function cacheKeysSelector() {
-      for (var _len12 = arguments.length, args = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
-        args[_key12] = arguments[_key12];
+      for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
+        args[_key11] = arguments[_key11];
       }
 
       return selectors.map(function (selector) {
@@ -482,8 +501,8 @@ var withActions = exports.withActions = createStoreHoc(function (Component, prop
 });
 
 function compose() {
-  for (var _len13 = arguments.length, functions = Array(_len13), _key13 = 0; _key13 < _len13; _key13++) {
-    functions[_key13] = arguments[_key13];
+  for (var _len12 = arguments.length, functions = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
+    functions[_key12] = arguments[_key12];
   }
 
   if (functions.length === 0) {
@@ -504,8 +523,8 @@ function compose() {
 }
 
 function hoc() {
-  for (var _len14 = arguments.length, callbacks = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
-    callbacks[_key14] = arguments[_key14];
+  for (var _len13 = arguments.length, callbacks = Array(_len13), _key13 = 0; _key13 < _len13; _key13++) {
+    callbacks[_key13] = arguments[_key13];
   }
 
   return callbacks.reduce(function (nextHoc, callback) {
@@ -537,41 +556,8 @@ function Provider(_ref2) {
   return (0, _react.createElement)(storeContext.Provider, { value: store, children: children });
 }
 
-/***
- * createActionGroup(accept, reducer)
- * createActionGroup(reducer)
- * @param args
- * @return {*}
- */
-function createActionGroup() {
-  var reducer = void 0,
-      accept = void 0;
-  // createActionGroup(accept, reducer)
-  if (arguments.length > 1) {
-    accept = arguments.length <= 0 ? undefined : arguments[0];
-    reducer = arguments.length <= 1 ? undefined : arguments[1];
-  } else {
-    // createActionGroup(reducer)
-    reducer = arguments.length <= 0 ? undefined : arguments[0];
-    accept = typeof reducer === "function" ? [] : Object.keys(reducer);
-  }
-
-  var actionCache = {};
-
-  return new Proxy({}, {
-    get: function get(target, prop) {
-      if (prop === objectTypeProp) return objectTypes.actionGroup;
-      if (prop in actionCache) {
-        return actionCache[prop];
-      }
-
-      if (accept.length && !accept.includes(prop)) {
-        throw new Error("No action " + prop + " is defined in this action group");
-      }
-
-      return actionCache[prop] = createAction(typeof reducer === "function" ? reducer : reducer[prop], prop);
-    }
-  });
+function createActionGroup(actions) {
+  return actions;
 }
 
 function getType(action) {
@@ -585,24 +571,10 @@ function getType(action) {
   return action.displayName;
 }
 
-function createAction(reducer, prop) {
-  var action = typeof reducer === "function" ? function (state, payload) {
-    var prev = state.get();
-    var next = reducer(prev, { type: prop, payload: payload });
-    if (next !== prev) {
-      state.set(next);
-    }
-  } : function (state, payload) {
-    return state.reduce(reducer, { type: prop, payload: payload });
-  };
-  action.displayName = prop;
-  return action;
-}
-
 function createStoreUtility(callback) {
   return function () {
-    for (var _len15 = arguments.length, args = Array(_len15), _key15 = 0; _key15 < _len15; _key15++) {
-      args[_key15] = arguments[_key15];
+    for (var _len14 = arguments.length, args = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
+      args[_key14] = arguments[_key14];
     }
 
     var store = (0, _react.useContext)(storeContext);
@@ -615,8 +587,8 @@ function createStoreUtility(callback) {
 
 function createStoreHoc(callback, initializer) {
   return function () {
-    for (var _len16 = arguments.length, args = Array(_len16), _key16 = 0; _key16 < _len16; _key16++) {
-      args[_key16] = arguments[_key16];
+    for (var _len15 = arguments.length, args = Array(_len15), _key15 = 0; _key15 < _len15; _key15++) {
+      args[_key15] = arguments[_key15];
     }
 
     var hasStore = isStore(args[0]);
