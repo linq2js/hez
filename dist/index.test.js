@@ -73,9 +73,17 @@ test("should receive an error when trying to access un-accepted action", functio
   var actionGroup = (0, _index.createActionGroup)("ActionGroup", ["AcceptedA", "AcceptedB"], {});
 
   var callback = function callback() {
-    var action = actionGroup.myAction;
+    actionGroup.myAction();
   };
 
   expect(callback).toThrowError("No action myAction is defined in this action group");
+});
+
+test("actionGroup should have object type is actionGroup", function () {
+  var actionGroup = (0, _index.createActionGroup)({
+    add: {}
+  });
+
+  expect(actionGroup[_index.objectTypeProp]).toBe(_index.objectTypes.actionGroup);
 });
 //# sourceMappingURL=index.test.js.map

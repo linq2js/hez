@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = undefined;
+exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.objectTypes = exports.objectTypeProp = undefined;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -29,8 +29,11 @@ var defaultSelector = function defaultSelector(state) {
   return state;
 };
 var storeContext = (0, _react.createContext)(null);
-var isStoreProp = "@@store";
-var isActionGroupProp = "@@actionGroup";
+var objectTypeProp = exports.objectTypeProp = "@@objectType";
+var objectTypes = exports.objectTypes = {
+  store: 1,
+  actionGroup: 2
+};
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
@@ -194,7 +197,7 @@ function createStore() {
     subscribe: subscribe,
     inject: inject,
     use: use
-  }, isStoreProp, true);
+  }, objectTypeProp, objectTypes.store);
   var hasActionSubscription = void 0;
   var state = initialState;
   var lastDispatchedAction = void 0;
@@ -357,7 +360,7 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
   }
 
   return (0, _react.useMemo)(function () {
-    if (actions[0][isActionGroupProp] === true) {
+    if (actions[0][objectTypeProp] === objectTypes.actionGroup) {
       var actionGroup = actions[0];
       return actions.slice(1).map(function (actionType) {
         var action = actionGroup[actionType];
@@ -576,7 +579,7 @@ function createActionGroup() {
 
   return new Proxy({}, {
     get: function get(target, prop) {
-      if (prop === isActionGroupProp) return true;
+      if (prop === objectTypeProp) return objectTypes.actionGroup;
       if (prop in actionCache) {
         return actionCache[prop];
       }
@@ -650,7 +653,7 @@ function createStoreHoc(callback, initializer) {
 }
 
 function isStore(obj) {
-  return obj && obj[isStoreProp] === true;
+  return obj && obj[objectTypeProp] === objectTypes.store;
 }
 
 function generateId() {

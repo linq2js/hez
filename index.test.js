@@ -1,4 +1,10 @@
-import { createActionGroup, createState, createStore } from "./index";
+import {
+  createActionGroup,
+  createState,
+  createStore,
+  objectTypeProp,
+  objectTypes
+} from "./index";
 
 test("action dispatch handling should work properly", async () => {
   const store = createStore();
@@ -52,10 +58,18 @@ test("should receive an error when trying to access un-accepted action", () => {
   );
 
   const callback = () => {
-    const action = actionGroup.myAction;
+    actionGroup.myAction();
   };
 
   expect(callback).toThrowError(
     "No action myAction is defined in this action group"
   );
+});
+
+test("actionGroup should have object type is actionGroup", () => {
+  const actionGroup = createActionGroup({
+    add: {}
+  });
+
+  expect(actionGroup[objectTypeProp]).toBe(objectTypes.actionGroup);
 });

@@ -16,8 +16,11 @@ if (!useMemo) {
 
 const defaultSelector = state => state;
 const storeContext = createContext(null);
-const isStoreProp = "@@store";
-const isActionGroupProp = "@@actionGroup";
+export const objectTypeProp = "@@objectType";
+export const objectTypes = {
+  store: 1,
+  actionGroup: 2
+};
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
@@ -171,7 +174,7 @@ export function createStore(initialState = {}) {
     subscribe,
     inject,
     use,
-    [isStoreProp]: true
+    [objectTypeProp]: objectTypes.store
   };
   let hasActionSubscription;
   let state = initialState;
@@ -300,7 +303,7 @@ export function createStore(initialState = {}) {
  */
 export const useActions = createStoreUtility((store, ...actions) => {
   return useMemo(() => {
-    if (actions[0][isActionGroupProp] === true) {
+    if (actions[0][objectTypeProp] === objectTypes.actionGroup) {
       const actionGroup = actions[0];
       return actions.slice(1).map(actionType => {
         const action = actionGroup[actionType];
@@ -469,7 +472,7 @@ export function createActionGroup(...args) {
     {},
     {
       get(target, prop) {
-        if (prop === isActionGroupProp) return true;
+        if (prop === objectTypeProp) return objectTypes.actionGroup;
         if (prop in actionCache) {
           return actionCache[prop];
         }
@@ -547,7 +550,7 @@ function createStoreHoc(callback, initializer) {
 }
 
 function isStore(obj) {
-  return obj && obj[isStoreProp] === true;
+  return obj && obj[objectTypeProp] === objectTypes.store;
 }
 
 function generateId() {
