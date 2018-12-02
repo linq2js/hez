@@ -1,5 +1,7 @@
 "use strict";
 
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
 var _index = require("./index");
 
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
@@ -56,9 +58,42 @@ test("should call reducer properly", function () {
   state.reduce({
     todos: reducerCallback
   });
-
   expect(reducerCallback.mock.calls.length).toBe(1);
   expect(reducerCallback.mock.calls[0][0]).toBe(initialState.todos);
-  expect(reducerCallback.mock.calls[0][1]).toBe(state.get());
+});
+
+test("should receive action(Function) for dynamic action creating", function () {
+  var actionGroup = (0, _index.createActionGroup)("ActionGroup", {});
+
+  expect(_typeof(actionGroup.myAction)).toBe("function");
+  expect(actionGroup.myAction.displayName).toBe("ActionGroup.myAction");
+});
+
+test("should receive an error when trying to access un-accepted action", function () {
+  var actionGroup = (0, _index.createActionGroup)("ActionGroup", ["AcceptedA", "AcceptedB"], {});
+
+  var callback = function callback() {
+    var action = actionGroup.myAction;
+  };
+
+  expect(callback).toThrowError("No action myAction is defined in this action group");
+});
+
+test("should receive an error when trying to access accepted actions if no accept argument specified", function () {
+  var actionGroup = (0, _index.createActionGroup)("ActionGroup", {});
+
+  var callback = function callback() {
+    var actions = actionGroup["@@acceptedActions"];
+  };
+
+  expect(callback).toThrowError("No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)");
+});
+
+test("should receive array of function when trying to access @@acceptedActions", function () {
+  var actionGroup = (0, _index.createActionGroup)("ActionGroup", ["AcceptedA", "AcceptedB"], {});
+
+  expect(actionGroup["@@acceptedActions"].every(function (x) {
+    return typeof x === "function";
+  })).toBe(true);
 });
 //# sourceMappingURL=index.test.js.map

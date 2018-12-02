@@ -29,6 +29,8 @@ var defaultSelector = function defaultSelector(state) {
 };
 var storeContext = (0, _react.createContext)(null);
 var isStoreProp = "@@store";
+var isActionGroupProp = "@@actionGroup";
+var acceptedActionsProp = "@@acceptedActions";
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
@@ -148,6 +150,8 @@ function createState() {
     });
 
     setState(nextState);
+
+    return nextState;
   }
 
   return new Proxy({}, {
@@ -354,6 +358,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
 
   return (0, _react.useMemo)(function () {
     return actions.map(function (action) {
+      return action[isActionGroupProp] ? action[acceptedActionsProp] : [action];
+    }).flat().map(function (action) {
       return function () {
         for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
           args[_key8] = arguments[_key8];
@@ -517,23 +523,64 @@ function Provider(_ref2) {
   return (0, _react.createElement)(storeContext.Provider, { value: store, children: children });
 }
 
+/***
+ * createActionGroup(accept, reducer)
+ * createActionGroup(reducer)
+ * createActionGroup(name, accept, reducer)
+ * createActionGroup(name, reducer)
+ * @param args
+ * @return {*}
+ */
 function createActionGroup() {
   var name = void 0,
-      reducer = void 0;
+      reducer = void 0,
+      accept = void 0;
   if (arguments.length > 1) {
-    name = arguments.length <= 0 ? undefined : arguments[0];
-    reducer = arguments.length <= 1 ? undefined : arguments[1];
+    // createActionGroup(name, accept, reducer)
+    if (Array.isArray(arguments.length <= 1 ? undefined : arguments[1])) {
+      name = arguments.length <= 0 ? undefined : arguments[0];
+      accept = arguments.length <= 1 ? undefined : arguments[1];
+      reducer = arguments.length <= 2 ? undefined : arguments[2];
+    } else {
+      // createActionGroup(accept, reducer)
+      if (Array.isArray(arguments.length <= 0 ? undefined : arguments[0])) {
+        name = "@@reducer_" + generateId();
+        accept = arguments.length <= 0 ? undefined : arguments[0];
+        reducer = arguments.length <= 1 ? undefined : arguments[1];
+      } else {
+        // createActionGroup(name, reducer)
+        accept = [];
+        name = arguments.length <= 0 ? undefined : arguments[0];
+        reducer = arguments.length <= 1 ? undefined : arguments[1];
+      }
+    }
   } else {
+    // createActionGroup(reducer)
     name = "@@reducer_" + generateId();
     reducer = arguments.length <= 0 ? undefined : arguments[0];
+    accept = [];
   }
 
   var actionCache = {};
+  var acceptedActions = accept.map(function (type) {
+    return actionCache[type] = createAction(name, reducer, type);
+  });
 
   return new Proxy({}, {
     get: function get(target, prop) {
+      if (prop === isActionGroupProp) return true;
+      if (prop === acceptedActionsProp) {
+        if (!accept.length) {
+          throw new Error("No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)");
+        }
+        return acceptedActions;
+      }
       if (prop in actionCache) {
         return actionCache[prop];
+      }
+
+      if (accept.length && !accept.includes(prop)) {
+        throw new Error("No action " + prop + " is defined in this action group");
       }
 
       return actionCache[prop] = createAction(name, reducer, prop);

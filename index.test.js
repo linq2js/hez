@@ -1,4 +1,4 @@
-import { createState, createStore } from "./index";
+import { createActionGroup, createState, createStore } from "./index";
 
 test("action dispatch handling should work properly", async () => {
   const store = createStore();
@@ -33,8 +33,53 @@ test("should call reducer properly", () => {
   state.reduce({
     todos: reducerCallback
   });
-
   expect(reducerCallback.mock.calls.length).toBe(1);
   expect(reducerCallback.mock.calls[0][0]).toBe(initialState.todos);
-  expect(reducerCallback.mock.calls[0][1]).toBe(state.get());
+});
+
+test("should receive action(Function) for dynamic action creating", () => {
+  const actionGroup = createActionGroup("ActionGroup", {});
+
+  expect(typeof actionGroup.myAction).toBe("function");
+  expect(actionGroup.myAction.displayName).toBe("ActionGroup.myAction");
+});
+
+test("should receive an error when trying to access un-accepted action", () => {
+  const actionGroup = createActionGroup(
+    "ActionGroup",
+    ["AcceptedA", "AcceptedB"],
+    {}
+  );
+
+  const callback = () => {
+    const action = actionGroup.myAction;
+  };
+
+  expect(callback).toThrowError(
+    "No action myAction is defined in this action group"
+  );
+});
+
+test("should receive an error when trying to access accepted actions if no accept argument specified", () => {
+  const actionGroup = createActionGroup("ActionGroup", {});
+
+  const callback = () => {
+    const actions = actionGroup["@@acceptedActions"];
+  };
+
+  expect(callback).toThrowError(
+    "No predefined action. Please use const [actionA, actionB] = useActions(actionGroupName.actionA, actionGroupName.actionB) instead of useActions(actionGroupName)"
+  );
+});
+
+test("should receive array of function when trying to access @@acceptedActions", () => {
+  const actionGroup = createActionGroup(
+    "ActionGroup",
+    ["AcceptedA", "AcceptedB"],
+    {}
+  );
+
+  expect(
+    actionGroup["@@acceptedActions"].every(x => typeof x === "function")
+  ).toBe(true);
 });
