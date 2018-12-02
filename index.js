@@ -18,7 +18,6 @@ const defaultSelector = state => state;
 const storeContext = createContext(null);
 const isStoreProp = "@@store";
 const isActionGroupProp = "@@actionGroup";
-const acceptedActionsProp = "@@acceptedActions";
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
@@ -299,7 +298,7 @@ export function createStore(initialState = {}) {
  */
 export const useActions = createStoreUtility((store, ...actions) => {
   return useMemo(() => {
-    if (actions[0][isActionGroupProp]) {
+    if (actions[0][isActionGroupProp] === true) {
       const actionGroup = actions[0];
       return actions.slice(1).map(actionType => actionGroup[actionType]);
     }
@@ -528,7 +527,7 @@ function createStoreHoc(callback, initializer) {
 }
 
 function isStore(obj) {
-  return obj && obj[isStoreProp];
+  return obj && obj[isStoreProp] === true;
 }
 
 function generateId() {

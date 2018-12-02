@@ -30,7 +30,6 @@ var defaultSelector = function defaultSelector(state) {
 var storeContext = (0, _react.createContext)(null);
 var isStoreProp = "@@store";
 var isActionGroupProp = "@@actionGroup";
-var acceptedActionsProp = "@@acceptedActions";
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
@@ -357,7 +356,7 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
   }
 
   return (0, _react.useMemo)(function () {
-    if (actions[0][isActionGroupProp]) {
+    if (actions[0][isActionGroupProp] === true) {
       var actionGroup = actions[0];
       return actions.slice(1).map(function (actionType) {
         return actionGroup[actionType];
@@ -632,7 +631,7 @@ function createStoreHoc(callback, initializer) {
 }
 
 function isStore(obj) {
-  return obj && obj[isStoreProp];
+  return obj && obj[isStoreProp] === true;
 }
 
 function generateId() {
