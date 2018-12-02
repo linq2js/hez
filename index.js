@@ -300,7 +300,10 @@ export const useActions = createStoreUtility((store, ...actions) => {
   return useMemo(() => {
     if (actions[0][isActionGroupProp] === true) {
       const actionGroup = actions[0];
-      return actions.slice(1).map(actionType => actionGroup[actionType]);
+      return actions.slice(1).map(actionType => {
+        const action = actionGroup[actionType];
+        return (...args) => store.dispatch(action, ...args);
+      });
     }
     return actions.map(action => (...args) => store.dispatch(action, ...args));
   }, [store].concat(actions));
@@ -473,7 +476,11 @@ export function createActionGroup(...args) {
           throw new Error(`No action ${prop} is defined in this action group`);
         }
 
-        return (actionCache[prop] = createAction(name, reducer, prop));
+        return (actionCache[prop] = createAction(
+          name,
+          typeof reducer === "function" ? reducer : reducer[prop],
+          prop
+        ));
       }
     }
   );
