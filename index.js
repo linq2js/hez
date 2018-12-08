@@ -2,7 +2,7 @@ import {
   createElement,
   createContext,
   memo,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   useContext
@@ -349,7 +349,7 @@ export const useStore = createStoreUtility(
     const globalState = useMemo(() => selector(state), [state]);
     let [localState, setLocalState] = useState(globalState);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       return store.subscribe(nextState => {
         let nextLocalState = selector(nextState);
         if (nextLocalState !== localState) {

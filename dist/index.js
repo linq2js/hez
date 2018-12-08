@@ -425,7 +425,7 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
       localState = _useState2[0],
       setLocalState = _useState2[1];
 
-  (0, _react.useEffect)(function () {
+  (0, _react.useLayoutEffect)(function () {
     return store.subscribe(function (nextState) {
       var nextLocalState = selector(nextState);
       if (nextLocalState !== localState) {
