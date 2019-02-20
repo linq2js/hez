@@ -407,6 +407,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
 /**
  * useStore(store, selector, ...cacheKeys)
  * useStore(selector, ...cacheKeys)
+ * useStore(selectors, ...cacheKeys)
+ * useStore(store, selectors, ...cacheKeys)
  */
 var useStore = exports.useStore = createStoreUtility(function (store) {
   for (var _len9 = arguments.length, cacheKeys = Array(_len9 > 2 ? _len9 - 2 : 0), _key9 = 2; _key9 < _len9; _key9++) {
@@ -415,9 +417,24 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
 
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
 
+  var isMultipleSelectors = Array.isArray(selector);
+  // extract selector keys if it is plain object
+  var selectorKeys = isMultipleSelectors || typeof selector === "function" ? undefined : Object.keys(selector);
   var state = store.getState();
+  var selectorWrapper = function selectorWrapper(state) {
+    return isMultipleSelectors ? // extract multiple state values
+    selector.map(function (subSelector) {
+      return subSelector(state);
+    }) : selectorKeys ? // extract values by object keys
+    selectorKeys.reduce(function (obj, key) {
+      obj[key] = selector[key](state);
+      return obj;
+    }, {}) // extract single value
+    : selector(state);
+  };
+
   var globalState = (0, _react.useMemo)(function () {
-    return selector(state);
+    return selectorWrapper(state);
   }, [state]);
 
   var _useState = (0, _react.useState)(globalState),
@@ -427,8 +444,16 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
 
   (0, _react.useLayoutEffect)(function () {
     return store.subscribe(function (nextState) {
-      var nextLocalState = selector(nextState);
-      if (nextLocalState !== localState) {
+      var nextLocalState = selectorWrapper(nextState);
+      // detect change
+      var hasChange = isMultipleSelectors ? // compare local array and next array
+      localState.some(function (localValue, index) {
+        return nextLocalState[index] !== localValue;
+      }) : selectorKeys ? selectorKeys.some(function (key) {
+        return localState[key] !== nextLocalState[key];
+      }) : nextLocalState !== localState;
+
+      if (hasChange) {
         setLocalState(localState = nextLocalState);
       }
     });

@@ -1,10 +1,28 @@
 "use strict";
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _react = require("react");
+
+var _reactDom = require("react-dom");
+
+var _testUtils = require("react-dom/test-utils");
 
 var _index = require("./index");
 
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
+
+var container = void 0;
+
+beforeEach(function () {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+});
+
+afterEach(function () {
+  document.body.removeChild(container);
+  container = null;
+});
 
 test("action dispatch handling should work properly", _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
   var store, fromCallback, toCallback, toResult, FromAction, ToAction;
@@ -62,28 +80,41 @@ test("should call reducer properly", function () {
   expect(reducerCallback.mock.calls[0][0]).toBe(initialState.todos);
 });
 
-test("should receive action(Function) for dynamic action creating", function () {
-  var actionGroup = (0, _index.createActionGroup)({});
+test("extract multiple values from store", function () {
+  var initialState = {
+    value1: 1,
+    value2: 2
+  };
+  var store = (0, _index.createStore)(initialState);
 
-  expect(_typeof(actionGroup.myAction)).toBe("function");
-  expect(actionGroup.myAction.displayName).toBe("myAction");
-});
-
-test("should receive an error when trying to access un-accepted action", function () {
-  var actionGroup = (0, _index.createActionGroup)("ActionGroup", ["AcceptedA", "AcceptedB"], {});
-
-  var callback = function callback() {
-    actionGroup.myAction();
+  var selectValue1 = function selectValue1(state) {
+    return state.value1;
+  };
+  var selectValue2 = function selectValue2(state) {
+    return state.value2;
   };
 
-  expect(callback).toThrowError("No action myAction is defined in this action group");
-});
+  var UseStoreTest = function UseStoreTest() {
+    var _useStore = (0, _index.useStore)([selectValue1, selectValue2]),
+        _useStore2 = _slicedToArray(_useStore, 2),
+        value1 = _useStore2[0],
+        value2 = _useStore2[1];
 
-test("actionGroup should have object type is actionGroup", function () {
-  var actionGroup = (0, _index.createActionGroup)({
-    add: {}
-  });
+    var value3 = (0, _index.useStore)(selectValue1);
+    var obj = (0, _index.useStore)({
+      value1: selectValue1,
+      value2: selectValue2
+    });
 
-  expect(actionGroup[_index.objectTypeProp]).toBe(_index.objectTypes.actionGroup);
+    expect(value1).toBe(1);
+    expect(value2).toBe(2);
+    expect(value3).toBe(1);
+    expect(obj.value1).toBe(1);
+    expect(obj.value2).toBe(2);
+
+    return true;
+  };
+
+  (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseStoreTest)), container);
 });
 //# sourceMappingURL=index.test.js.map

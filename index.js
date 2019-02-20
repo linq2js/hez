@@ -342,17 +342,47 @@ export const useActions = createStoreUtility((store, ...actions) => {
 /**
  * useStore(store, selector, ...cacheKeys)
  * useStore(selector, ...cacheKeys)
+ * useStore(selectors, ...cacheKeys)
+ * useStore(store, selectors, ...cacheKeys)
  */
 export const useStore = createStoreUtility(
   (store, selector = defaultSelector, ...cacheKeys) => {
+    const isMultipleSelectors = Array.isArray(selector);
+    // extract selector keys if it is plain object
+    const selectorKeys =
+      isMultipleSelectors || typeof selector === "function"
+        ? undefined
+        : Object.keys(selector);
     const state = store.getState();
-    const globalState = useMemo(() => selector(state), [state]);
+    const selectorWrapper = state =>
+      isMultipleSelectors
+        ? // extract multiple state values
+          selector.map(subSelector => subSelector(state))
+        : selectorKeys
+        ? // extract values by object keys
+          selectorKeys.reduce((obj, key) => {
+            obj[key] = selector[key](state);
+            return obj;
+          }, {}) // extract single value
+        : selector(state);
+
+    const globalState = useMemo(() => selectorWrapper(state), [state]);
     let [localState, setLocalState] = useState(globalState);
 
     useLayoutEffect(() => {
       return store.subscribe(nextState => {
-        let nextLocalState = selector(nextState);
-        if (nextLocalState !== localState) {
+        let nextLocalState = selectorWrapper(nextState);
+        // detect change
+        const hasChange = isMultipleSelectors
+          ? // compare local array and next array
+            localState.some(
+              (localValue, index) => nextLocalState[index] !== localValue
+            )
+          : selectorKeys
+          ? selectorKeys.some(key => localState[key] !== nextLocalState[key])
+          : nextLocalState !== localState;
+
+        if (hasChange) {
           setLocalState((localState = nextLocalState));
         }
       });
