@@ -80,14 +80,14 @@ function createState() {
       args[_key] = arguments[_key];
     }
 
-    if (args.length === 2 && typeof args[0] !== "function") {
+    if (args.length === 2 && (typeof args[0] !== "function" || args[0].___selector)) {
       // support state prop modifier
       // state.set('count', x => x + 1)
       var prop = args[0],
           modifier = args[1];
 
       var prevValue = state[prop];
-      var nextValue = modifier(prevValue);
+      var nextValue = typeof modifier === "function" ? modifier(prevValue) : modifier;
       if (nextValue !== prevValue) {
         // clone current state
         var nextState = Array.isArray(state) ? state.slice() : Object.assign({}, state);
@@ -228,11 +228,15 @@ function createSelector() {
       defaultValue = args[1];
 
   if (typeof selector === "string") {
-    return createSelector(function (state) {
+    return Object.assign(createSelector(function (state) {
       // return prop name if no state specified
       if (typeof state === "undefined") return selector;
       return state[selector];
-    }, defaultValue);
+    }, defaultValue), {
+      toString: function toString() {
+        return selector;
+      }
+    });
   }
 
   // avoid re-wrap selector multiple times

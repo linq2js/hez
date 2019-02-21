@@ -68,12 +68,16 @@ export function createState(
   function setState(...args) {
     const state = stateAccessor();
 
-    if (args.length === 2 && typeof args[0] !== "function") {
+    if (
+      args.length === 2 &&
+      (typeof args[0] !== "function" || args[0].___selector)
+    ) {
       // support state prop modifier
       // state.set('count', x => x + 1)
       const [prop, modifier] = args;
       const prevValue = state[prop];
-      const nextValue = modifier(prevValue);
+      const nextValue =
+        typeof modifier === "function" ? modifier(prevValue) : modifier;
       if (nextValue !== prevValue) {
         // clone current state
         const nextState = Array.isArray(state)
@@ -194,13 +198,18 @@ export function createSelector(...args) {
 
   const [selector, defaultValue] = args;
   if (typeof selector === "string") {
-    return createSelector(
-      function(state) {
-        // return prop name if no state specified
-        if (typeof state === "undefined") return selector;
-        return state[selector];
-      },
-      defaultValue
+    return Object.assign(
+      createSelector(
+        function(state) {
+          // return prop name if no state specified
+          if (typeof state === "undefined") return selector;
+          return state[selector];
+        },
+        defaultValue
+      ),
+      {
+        toString: () => selector
+      }
     );
   }
 

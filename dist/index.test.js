@@ -10,6 +10,8 @@ var _testUtils = require("react-dom/test-utils");
 
 var _index = require("./index");
 
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
 var container = void 0;
@@ -163,8 +165,6 @@ test("Using merge state with computed modifier", function () {
   var selectA = (0, _index.createSelector)("a", 1);
   var selectB = (0, _index.createSelector)("b", 2);
 
-  console.log('[222]', selectB());
-
   var state = (0, _index.createState)({
     other: 1
   });
@@ -175,5 +175,16 @@ test("Using merge state with computed modifier", function () {
   });
 
   expect(state.get()).toEqual({ sum: 3, other: 1 });
+});
+
+test("selector can be use as prop name", function () {
+  var $name = (0, _index.createSelector)("name");
+  var value1 = _defineProperty({}, $name, "test");
+  var state = (0, _index.createState)({});
+
+  state.set($name, "test");
+
+  expect(value1).toEqual({ name: "test" });
+  expect(state.get()).toEqual({ name: "test" });
 });
 //# sourceMappingURL=index.test.js.map

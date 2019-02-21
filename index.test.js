@@ -159,8 +159,6 @@ test("Using merge state with computed modifier", () => {
     2
   );
 
-  console.log('[222]', selectB());
-
   const state = createState({
     other: 1
   });
@@ -169,4 +167,15 @@ test("Using merge state with computed modifier", () => {
   }));
 
   expect(state.get()).toEqual({ sum: 3, other: 1 });
+});
+
+test("selector can be use as prop name", () => {
+  const $name = createSelector("name");
+  const value1 = { [$name]: "test" };
+  const state = createState({});
+
+  state.set($name, "test");
+
+  expect(value1).toEqual({ name: "test" });
+  expect(state.get()).toEqual({ name: "test" });
 });
