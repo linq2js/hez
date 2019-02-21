@@ -68,7 +68,7 @@ export function createState(
   function setState(...args) {
     const state = stateAccessor();
 
-    if (args.length === 2) {
+    if (args.length === 2 && typeof args[0] !== "function") {
       // support state prop modifier
       // state.set('count', x => x + 1)
       const [prop, modifier] = args;
@@ -83,7 +83,7 @@ export function createState(
         notify(nextState);
       }
     } else {
-      let [nextState] = args;
+      let nextState = resolveNextState(state, args);
       // support callback
       // state.set(state => doSomething)
       if (typeof nextState === "function") {
@@ -101,8 +101,19 @@ export function createState(
     localState = state;
   }
 
-  function mergeState(nextState) {
+  function resolveNextState(state, args) {
+    if (typeof args[0] !== "function" || args.length < 2) {
+      return args[0];
+    }
+    const resolvedPropValues = args
+      .slice(0, args.length - 1)
+      .map(selector => selector(state));
+    return args[args.length - 1].apply(null, resolvedPropValues);
+  }
+
+  function mergeState(...args) {
     const state = stateAccessor();
+    const nextState = resolveNextState(state, args);
     if (typeof nextState === "function") {
       return mergeState(nextState(state));
     }
@@ -156,6 +167,57 @@ export function createState(
         }
         return getState(prop);
       }
+    }
+  );
+}
+
+export function createSelector(...args) {
+  // create computed selector
+  if (args.length > 1 && typeof args[1] === "function") {
+    const selectors = args
+      .slice(0, args.length - 1)
+      .map(selector => createSelector(selector));
+    let lastInputs, lastResult;
+    return createSelector(state => {
+      const inputs = selectors.map(s => s(state));
+      // do not call selector twice if inputs does not change
+      if (
+        typeof lastInputs !== "undefined" &&
+        inputs.every((value, index) => lastInputs[index] === value)
+      ) {
+        return lastResult;
+      }
+      lastInputs = inputs;
+      return (lastResult = args[args.length - 1].apply(null, inputs));
+    });
+  }
+
+  const [selector, defaultValue] = args;
+  if (typeof selector === "string") {
+    return createSelector(
+      function(state) {
+        // return prop name if no state specified
+        if (!arguments.length) return selector;
+        return state[selector];
+      },
+      defaultValue
+    );
+  }
+
+  // avoid re-wrap selector multiple times
+  if (selector.___selector) return selector;
+
+  return Object.assign(
+    state => {
+      const propValue = selector(state);
+      if (typeof propValue === "undefined") {
+        return defaultValue;
+      }
+
+      return propValue;
+    },
+    {
+      ___selector: true
     }
   );
 }

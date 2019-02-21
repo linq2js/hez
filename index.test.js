@@ -1,7 +1,13 @@
 import { createElement } from "react";
 import { render } from "react-dom";
 import { act } from "react-dom/test-utils";
-import { createState, createStore, useStore, Provider } from "./index";
+import {
+  createState,
+  createStore,
+  useStore,
+  Provider,
+  createSelector
+} from "./index";
 
 let container;
 
@@ -83,4 +89,82 @@ test("extract multiple values from store", () => {
     createElement(Provider, { store }, createElement(UseStoreTest)),
     container
   );
+});
+
+test("selector should work with default value properly", () => {
+  const selectValue = createSelector(
+    "value",
+    1
+  );
+  const initialState = {};
+  const value = selectValue(initialState);
+  expect(value).toBe(1);
+});
+
+test("computed selector should work properly", () => {
+  let calls = 0;
+  const selectA = createSelector(
+    "a",
+    1
+  );
+  const selectB = createSelector(
+    "b",
+    2
+  );
+  const selectSumOfAB = createSelector(
+    selectA,
+    selectB,
+    (a, b) => {
+      calls++;
+      return a + b;
+    }
+  );
+  const initialState = {};
+  const value1 = selectSumOfAB(initialState);
+  expect(value1).toBe(3);
+  // first call
+  expect(calls).toBe(1);
+
+  const value2 = selectSumOfAB(initialState);
+  expect(value2).toBe(value1);
+  // do not call selector twice if inputs does not change
+  expect(calls).toBe(1);
+});
+
+test("Using set state with computed modifier", () => {
+  const selectA = createSelector(
+    "a",
+    1
+  );
+  const selectB = createSelector(
+    "b",
+    2
+  );
+
+  const state = createState({});
+  state.set(selectA, selectB, (a, b) => ({
+    sum: a + b
+  }));
+
+  expect(state.get()).toEqual({ sum: 3 });
+});
+
+test("Using merge state with computed modifier", () => {
+  const selectA = createSelector(
+    "a",
+    1
+  );
+  const selectB = createSelector(
+    "b",
+    2
+  );
+
+  const state = createState({
+    other: 1
+  });
+  state.merge(selectA, selectB, (a, b) => ({
+    sum: a + b
+  }));
+
+  expect(state.get()).toEqual({ sum: 3, other: 1 });
 });

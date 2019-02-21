@@ -1,6 +1,6 @@
 {
   "name": "hez",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Flux architecture for React app. Fast and easy to use",
   "main": "./dist/index.js",
   "scripts": {

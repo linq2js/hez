@@ -117,4 +117,61 @@ test("extract multiple values from store", function () {
 
   (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseStoreTest)), container);
 });
+
+test("selector should work with default value properly", function () {
+  var selectValue = (0, _index.createSelector)("value", 1);
+  var initialState = {};
+  var value = selectValue(initialState);
+  expect(value).toBe(1);
+});
+
+test("computed selector should work properly", function () {
+  var calls = 0;
+  var selectA = (0, _index.createSelector)("a", 1);
+  var selectB = (0, _index.createSelector)("b", 2);
+  var selectSumOfAB = (0, _index.createSelector)(selectA, selectB, function (a, b) {
+    calls++;
+    return a + b;
+  });
+  var initialState = {};
+  var value1 = selectSumOfAB(initialState);
+  expect(value1).toBe(3);
+  // first call
+  expect(calls).toBe(1);
+
+  var value2 = selectSumOfAB(initialState);
+  expect(value2).toBe(value1);
+  // do not call selector twice if inputs does not change
+  expect(calls).toBe(1);
+});
+
+test("Using set state with computed modifier", function () {
+  var selectA = (0, _index.createSelector)("a", 1);
+  var selectB = (0, _index.createSelector)("b", 2);
+
+  var state = (0, _index.createState)({});
+  state.set(selectA, selectB, function (a, b) {
+    return {
+      sum: a + b
+    };
+  });
+
+  expect(state.get()).toEqual({ sum: 3 });
+});
+
+test("Using merge state with computed modifier", function () {
+  var selectA = (0, _index.createSelector)("a", 1);
+  var selectB = (0, _index.createSelector)("b", 2);
+
+  var state = (0, _index.createState)({
+    other: 1
+  });
+  state.merge(selectA, selectB, function (a, b) {
+    return {
+      sum: a + b
+    };
+  });
+
+  expect(state.get()).toEqual({ sum: 3, other: 1 });
+});
 //# sourceMappingURL=index.test.js.map

@@ -8,6 +8,7 @@ exports.withActions = exports.withState = exports.useStoreMemo = exports.useStor
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
 exports.createState = createState;
+exports.createSelector = createSelector;
 exports.createStore = createStore;
 exports.compose = compose;
 exports.hoc = hoc;
@@ -79,7 +80,7 @@ function createState() {
       args[_key] = arguments[_key];
     }
 
-    if (args.length === 2) {
+    if (args.length === 2 && typeof args[0] !== "function") {
       // support state prop modifier
       // state.set('count', x => x + 1)
       var prop = args[0],
@@ -94,10 +95,9 @@ function createState() {
         notify(nextState);
       }
     } else {
-      var _nextState = args[0];
+      var _nextState = resolveNextState(state, args);
       // support callback
       // state.set(state => doSomething)
-
       if (typeof _nextState === "function") {
         _nextState = _nextState(state);
       }
@@ -113,8 +113,24 @@ function createState() {
     localState = state;
   }
 
-  function mergeState(nextState) {
+  function resolveNextState(state, args) {
+    if (typeof args[0] !== "function" || args.length < 2) {
+      return args[0];
+    }
+    var resolvedPropValues = args.slice(0, args.length - 1).map(function (selector) {
+      return selector(state);
+    });
+    return args[args.length - 1].apply(null, resolvedPropValues);
+  }
+
+  function mergeState() {
     var state = stateAccessor();
+
+    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
+    }
+
+    var nextState = resolveNextState(state, args);
     if (typeof nextState === "function") {
       return mergeState(nextState(state));
     }
@@ -132,8 +148,8 @@ function createState() {
   }
 
   function reduceState() {
-    for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-      args[_key2 - 1] = arguments[_key2];
+    for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+      args[_key3 - 1] = arguments[_key3];
     }
 
     var reducers = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
@@ -167,8 +183,8 @@ function createState() {
         // create wrapper for injected method
         if (typeof value === "function") {
           return function () {
-            for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-              args[_key3] = arguments[_key3];
+            for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
+              args[_key4] = arguments[_key4];
             }
 
             return value.apply(undefined, [api].concat(args));
@@ -178,6 +194,59 @@ function createState() {
       }
       return getState(prop);
     }
+  });
+}
+
+function createSelector() {
+  for (var _len5 = arguments.length, args = Array(_len5), _key5 = 0; _key5 < _len5; _key5++) {
+    args[_key5] = arguments[_key5];
+  }
+
+  // create computed selector
+  if (args.length > 1 && typeof args[1] === "function") {
+    var selectors = args.slice(0, args.length - 1).map(function (selector) {
+      return createSelector(selector);
+    });
+    var lastInputs = void 0,
+        lastResult = void 0;
+    return createSelector(function (state) {
+      var inputs = selectors.map(function (s) {
+        return s(state);
+      });
+      // do not call selector twice if inputs does not change
+      if (typeof lastInputs !== "undefined" && inputs.every(function (value, index) {
+        return lastInputs[index] === value;
+      })) {
+        return lastResult;
+      }
+      lastInputs = inputs;
+      return lastResult = args[args.length - 1].apply(null, inputs);
+    });
+  }
+
+  var selector = args[0],
+      defaultValue = args[1];
+
+  if (typeof selector === "string") {
+    return createSelector(function (state) {
+      // return prop name if no state specified
+      if (!arguments.length) return selector;
+      return state[selector];
+    }, defaultValue);
+  }
+
+  // avoid re-wrap selector multiple times
+  if (selector.___selector) return selector;
+
+  return Object.assign(function (state) {
+    var propValue = selector(state);
+    if (typeof propValue === "undefined") {
+      return defaultValue;
+    }
+
+    return propValue;
+  }, {
+    ___selector: true
   });
 }
 
@@ -267,14 +336,14 @@ function createStore() {
   }
 
   function dispatch(action) {
-    for (var _len4 = arguments.length, args = Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
-      args[_key4 - 1] = arguments[_key4];
+    for (var _len6 = arguments.length, args = Array(_len6 > 1 ? _len6 - 1 : 0), _key6 = 1; _key6 < _len6; _key6++) {
+      args[_key6 - 1] = arguments[_key6];
     }
 
     return middlewares.reduce(function (next, middleware) {
       return function (action) {
-        for (var _len5 = arguments.length, args = Array(_len5 > 1 ? _len5 - 1 : 0), _key5 = 1; _key5 < _len5; _key5++) {
-          args[_key5 - 1] = arguments[_key5];
+        for (var _len7 = arguments.length, args = Array(_len7 > 1 ? _len7 - 1 : 0), _key7 = 1; _key7 < _len7; _key7++) {
+          args[_key7 - 1] = arguments[_key7];
         }
 
         return middleware(next).apply(undefined, [action].concat(args));
@@ -288,8 +357,8 @@ function createStore() {
       var actions = Array.isArray(action) ? action : [action];
       var lastResult = void 0;
 
-      for (var _len6 = arguments.length, args = Array(_len6 > 1 ? _len6 - 1 : 0), _key6 = 1; _key6 < _len6; _key6++) {
-        args[_key6 - 1] = arguments[_key6];
+      for (var _len8 = arguments.length, args = Array(_len8 > 1 ? _len8 - 1 : 0), _key8 = 1; _key8 < _len8; _key8++) {
+        args[_key8 - 1] = arguments[_key8];
       }
 
       var _iteratorNormalCompletion = true;
@@ -355,8 +424,8 @@ function createStore() {
  * useActions(...actions)
  */
 var useActions = exports.useActions = createStoreUtility(function (store) {
-  for (var _len7 = arguments.length, actions = Array(_len7 > 1 ? _len7 - 1 : 0), _key7 = 1; _key7 < _len7; _key7++) {
-    actions[_key7 - 1] = arguments[_key7];
+  for (var _len9 = arguments.length, actions = Array(_len9 > 1 ? _len9 - 1 : 0), _key9 = 1; _key9 < _len9; _key9++) {
+    actions[_key9 - 1] = arguments[_key9];
   }
 
   return (0, _react.useMemo)(function () {
@@ -394,8 +463,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
 
     return actions.map(function (action) {
       return function () {
-        for (var _len8 = arguments.length, args = Array(_len8), _key8 = 0; _key8 < _len8; _key8++) {
-          args[_key8] = arguments[_key8];
+        for (var _len10 = arguments.length, args = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
+          args[_key10] = arguments[_key10];
         }
 
         return store.dispatch.apply(store, [action].concat(args));
@@ -411,8 +480,8 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
  * useStore(store, selectors, ...cacheKeys)
  */
 var useStore = exports.useStore = createStoreUtility(function (store) {
-  for (var _len9 = arguments.length, cacheKeys = Array(_len9 > 2 ? _len9 - 2 : 0), _key9 = 2; _key9 < _len9; _key9++) {
-    cacheKeys[_key9 - 2] = arguments[_key9];
+  for (var _len11 = arguments.length, cacheKeys = Array(_len11 > 2 ? _len11 - 2 : 0), _key11 = 2; _key11 < _len11; _key11++) {
+    cacheKeys[_key11 - 2] = arguments[_key11];
   }
 
   var selector = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultSelector;
@@ -466,8 +535,8 @@ var useStore = exports.useStore = createStoreUtility(function (store) {
  * useStoreMemo(cacheKeysSelector, stateSelector, ...extraCacheKeys)
  */
 var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, cacheKeysSelector) {
-  for (var _len10 = arguments.length, extraCacheKeys = Array(_len10 > 3 ? _len10 - 3 : 0), _key10 = 3; _key10 < _len10; _key10++) {
-    extraCacheKeys[_key10 - 3] = arguments[_key10];
+  for (var _len12 = arguments.length, extraCacheKeys = Array(_len12 > 3 ? _len12 - 3 : 0), _key12 = 3; _key12 < _len12; _key12++) {
+    extraCacheKeys[_key12 - 3] = arguments[_key12];
   }
 
   var stateSelector = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (state) {
@@ -477,8 +546,8 @@ var useStoreMemo = exports.useStoreMemo = createStoreUtility(function (store, ca
   if (Array.isArray(cacheKeysSelector)) {
     var selectors = cacheKeysSelector;
     cacheKeysSelector = function cacheKeysSelector() {
-      for (var _len11 = arguments.length, args = Array(_len11), _key11 = 0; _key11 < _len11; _key11++) {
-        args[_key11] = arguments[_key11];
+      for (var _len13 = arguments.length, args = Array(_len13), _key13 = 0; _key13 < _len13; _key13++) {
+        args[_key13] = arguments[_key13];
       }
 
       return selectors.map(function (selector) {
@@ -526,8 +595,8 @@ var withActions = exports.withActions = createStoreHoc(function (Component, prop
 });
 
 function compose() {
-  for (var _len12 = arguments.length, functions = Array(_len12), _key12 = 0; _key12 < _len12; _key12++) {
-    functions[_key12] = arguments[_key12];
+  for (var _len14 = arguments.length, functions = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
+    functions[_key14] = arguments[_key14];
   }
 
   if (functions.length === 0) {
@@ -548,8 +617,8 @@ function compose() {
 }
 
 function hoc() {
-  for (var _len13 = arguments.length, callbacks = Array(_len13), _key13 = 0; _key13 < _len13; _key13++) {
-    callbacks[_key13] = arguments[_key13];
+  for (var _len15 = arguments.length, callbacks = Array(_len15), _key15 = 0; _key15 < _len15; _key15++) {
+    callbacks[_key15] = arguments[_key15];
   }
 
   return callbacks.reduce(function (nextHoc, callback) {
@@ -598,8 +667,8 @@ function getType(action) {
 
 function createStoreUtility(callback) {
   return function () {
-    for (var _len14 = arguments.length, args = Array(_len14), _key14 = 0; _key14 < _len14; _key14++) {
-      args[_key14] = arguments[_key14];
+    for (var _len16 = arguments.length, args = Array(_len16), _key16 = 0; _key16 < _len16; _key16++) {
+      args[_key16] = arguments[_key16];
     }
 
     var store = (0, _react.useContext)(storeContext);
@@ -612,8 +681,8 @@ function createStoreUtility(callback) {
 
 function createStoreHoc(callback, initializer) {
   return function () {
-    for (var _len15 = arguments.length, args = Array(_len15), _key15 = 0; _key15 < _len15; _key15++) {
-      args[_key15] = arguments[_key15];
+    for (var _len17 = arguments.length, args = Array(_len17), _key17 = 0; _key17 < _len17; _key17++) {
+      args[_key17] = arguments[_key17];
     }
 
     var hasStore = isStore(args[0]);
