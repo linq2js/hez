@@ -163,6 +163,8 @@ test("Using merge state with computed modifier", function () {
   var selectA = (0, _index.createSelector)("a", 1);
   var selectB = (0, _index.createSelector)("b", 2);
 
+  console.log('[222]', selectB());
+
   var state = (0, _index.createState)({
     other: 1
   });

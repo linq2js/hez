@@ -197,7 +197,7 @@ export function createSelector(...args) {
     return createSelector(
       function(state) {
         // return prop name if no state specified
-        if (!arguments.length) return selector;
+        if (typeof state === "undefined") return selector;
         return state[selector];
       },
       defaultValue

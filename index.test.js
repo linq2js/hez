@@ -159,6 +159,8 @@ test("Using merge state with computed modifier", () => {
     2
   );
 
+  console.log('[222]', selectB());
+
   const state = createState({
     other: 1
   });
