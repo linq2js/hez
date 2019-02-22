@@ -565,7 +565,7 @@ export function getType(action) {
     throw new Error("Invalid action. Action should be function type");
   }
   if (!action.displayName && action.name) {
-    action.displayName = "@@action_" + generateId();
+    action.displayName = action.name + "_" + generateId();
   }
 
   return action.displayName;

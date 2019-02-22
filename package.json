@@ -1,6 +1,6 @@
 {
   "name": "hez",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Flux architecture for React app. Fast and easy to use",
   "main": "./dist/index.js",
   "scripts": {
@@ -39,7 +39,8 @@
     "node-fetch": "^2.2.0",
     "prettier": "^1.15.2",
     "react": "^16.8.2",
-    "react-dom": "^16.8.2"
+    "react-dom": "^16.8.2",
+    "immhelper": "^1.0.50"
   },
   "jest": {}
 }
