@@ -694,13 +694,12 @@ function memoize(f) {
 }
 
 function usePromise(factory) {
-  var cacheKeys = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-
   var _this = this;
 
-  var defaultValue = arguments[2];
+  var cacheKeys = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
 
-  var _ref3 = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {},
+  var _ref3 = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {},
+      defaultValue = _ref3.defaultValue,
       onSuccess = _ref3.onSuccess,
       onFailure = _ref3.onFailure;
 

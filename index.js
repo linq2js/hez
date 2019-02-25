@@ -588,8 +588,7 @@ export function memoize(f) {
 export function usePromise(
   factory,
   cacheKeys = [],
-  defaultValue,
-  { onSuccess, onFailure } = {}
+  { defaultValue, onSuccess, onFailure } = {}
 ) {
   const [state, setState] = useState({ result: defaultValue });
 
