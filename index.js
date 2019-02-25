@@ -592,7 +592,7 @@ export function usePromise(
 ) {
   const [state, setState] = useState({ result: defaultValue });
 
-  useLayoutEffect(async () => {
+  async function effect() {
     try {
       const result = await factory(...cacheKeys);
       setState({
@@ -607,6 +607,10 @@ export function usePromise(
 
       onFailure && onFailure(error, ...cacheKeys);
     }
+  }
+
+  useLayoutEffect(() => {
+    effect();
   }, cacheKeys);
 
   return [state.result, state.error];

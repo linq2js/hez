@@ -694,9 +694,52 @@ function memoize(f) {
 }
 
 function usePromise(factory) {
-  var _this = this;
-
   var cacheKeys = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+
+  var effect = function () {
+    var _ref4 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
+      var result;
+      return regeneratorRuntime.wrap(function _callee$(_context) {
+        while (1) {
+          switch (_context.prev = _context.next) {
+            case 0:
+              _context.prev = 0;
+              _context.next = 3;
+              return factory.apply(undefined, _toConsumableArray(cacheKeys));
+
+            case 3:
+              result = _context.sent;
+
+              setState({
+                result: result
+              });
+
+              onSuccess && onSuccess.apply(undefined, [result].concat(_toConsumableArray(cacheKeys)));
+              _context.next = 12;
+              break;
+
+            case 8:
+              _context.prev = 8;
+              _context.t0 = _context["catch"](0);
+
+              setState({
+                error: _context.t0
+              });
+
+              onFailure && onFailure.apply(undefined, [_context.t0].concat(_toConsumableArray(cacheKeys)));
+
+            case 12:
+            case "end":
+              return _context.stop();
+          }
+        }
+      }, _callee, this, [[0, 8]]);
+    }));
+
+    return function effect() {
+      return _ref4.apply(this, arguments);
+    };
+  }();
 
   var _ref3 = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {},
       defaultValue = _ref3.defaultValue,
@@ -708,44 +751,9 @@ function usePromise(factory) {
       state = _useState4[0],
       setState = _useState4[1];
 
-  (0, _react.useLayoutEffect)(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
-    var result;
-    return regeneratorRuntime.wrap(function _callee$(_context) {
-      while (1) {
-        switch (_context.prev = _context.next) {
-          case 0:
-            _context.prev = 0;
-            _context.next = 3;
-            return factory.apply(undefined, _toConsumableArray(cacheKeys));
-
-          case 3:
-            result = _context.sent;
-
-            setState({
-              result: result
-            });
-
-            onSuccess && onSuccess.apply(undefined, [result].concat(_toConsumableArray(cacheKeys)));
-            _context.next = 12;
-            break;
-
-          case 8:
-            _context.prev = 8;
-            _context.t0 = _context["catch"](0);
-
-            setState({
-              error: _context.t0
-            });
-
-            onFailure && onFailure.apply(undefined, [_context.t0].concat(_toConsumableArray(cacheKeys)));
-
-          case 12:
-          case "end":
-            return _context.stop();
-        }
-      }
-    }, _callee, _this, [[0, 8]]);
-  })), cacheKeys);
+  (0, _react.useLayoutEffect)(function () {
+    effect();
+  }, cacheKeys);
 
   return [state.result, state.error];
 }
