@@ -15,15 +15,19 @@ exports.hoc = hoc;
 exports.Provider = Provider;
 exports.createActionGroup = createActionGroup;
 exports.getType = getType;
+exports.memoize = memoize;
+exports.usePromise = usePromise;
 
 var _react = require("react");
+
+function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 if (!_react.useMemo) {
-  throw new Error("This package requires React hooks. Please install React 16.7+");
+  throw new Error("This package requires React hooks. Please install React 16.8+");
 }
 
 var defaultSelector = function defaultSelector(state) {
@@ -669,10 +673,88 @@ function getType(action) {
   return action.displayName;
 }
 
-function createStoreUtility(callback) {
+function memoize(f) {
+  var lastResult = void 0;
+  var lastArgs = void 0;
+
   return function () {
     for (var _len16 = arguments.length, args = Array(_len16), _key16 = 0; _key16 < _len16; _key16++) {
       args[_key16] = arguments[_key16];
+    }
+
+    // call f on first time or args changed
+    if (!lastArgs || lastArgs.some(function (value, index) {
+      return value !== args[index];
+    })) {
+      lastArgs = args;
+      lastResult = f.apply(undefined, _toConsumableArray(lastArgs));
+    }
+    return lastResult;
+  };
+}
+
+function usePromise(factory) {
+  var cacheKeys = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+
+  var _this = this;
+
+  var defaultValue = arguments[2];
+
+  var _ref3 = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {},
+      onSuccess = _ref3.onSuccess,
+      onFailure = _ref3.onFailure;
+
+  var _useState3 = (0, _react.useState)({ result: defaultValue }),
+      _useState4 = _slicedToArray(_useState3, 2),
+      state = _useState4[0],
+      setState = _useState4[1];
+
+  (0, _react.useLayoutEffect)(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
+    var result;
+    return regeneratorRuntime.wrap(function _callee$(_context) {
+      while (1) {
+        switch (_context.prev = _context.next) {
+          case 0:
+            _context.prev = 0;
+            _context.next = 3;
+            return factory.apply(undefined, _toConsumableArray(cacheKeys));
+
+          case 3:
+            result = _context.sent;
+
+            setState({
+              result: result
+            });
+
+            onSuccess && onSuccess.apply(undefined, [result].concat(_toConsumableArray(cacheKeys)));
+            _context.next = 12;
+            break;
+
+          case 8:
+            _context.prev = 8;
+            _context.t0 = _context["catch"](0);
+
+            setState({
+              error: _context.t0
+            });
+
+            onFailure && onFailure.apply(undefined, [_context.t0].concat(_toConsumableArray(cacheKeys)));
+
+          case 12:
+          case "end":
+            return _context.stop();
+        }
+      }
+    }, _callee, _this, [[0, 8]]);
+  })), cacheKeys);
+
+  return [state.result, state.error];
+}
+
+function createStoreUtility(callback) {
+  return function () {
+    for (var _len17 = arguments.length, args = Array(_len17), _key17 = 0; _key17 < _len17; _key17++) {
+      args[_key17] = arguments[_key17];
     }
 
     var store = (0, _react.useContext)(storeContext);
@@ -685,8 +767,8 @@ function createStoreUtility(callback) {
 
 function createStoreHoc(callback, initializer) {
   return function () {
-    for (var _len17 = arguments.length, args = Array(_len17), _key17 = 0; _key17 < _len17; _key17++) {
-      args[_key17] = arguments[_key17];
+    for (var _len18 = arguments.length, args = Array(_len18), _key18 = 0; _key18 < _len18; _key18++) {
+      args[_key18] = arguments[_key18];
     }
 
     var hasStore = isStore(args[0]);

@@ -187,4 +187,17 @@ test("selector can be use as prop name", function () {
   expect(value1).toEqual({ name: "test" });
   expect(state.get()).toEqual({ name: "test" });
 });
+
+test("memoized function should call only once if arguments has no change", function () {
+  var counter = 0;
+  var memoizedCounter = (0, _index.memoize)(function () {
+    return counter++;
+  });
+
+  memoizedCounter();
+  memoizedCounter();
+  memoizedCounter();
+
+  expect(counter).toBe(1);
+});
 //# sourceMappingURL=index.test.js.map

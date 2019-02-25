@@ -1,6 +1,6 @@
 {
   "name": "hez",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Flux architecture for React app. Fast and easy to use",
   "main": "./dist/index.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "functional programming",
     "flux",
     "react",
-    "react-hooks",
+    "react-hook",
     "es6",
     "state",
     "state management",

@@ -10,7 +10,7 @@ import {
 
 if (!useMemo) {
   throw new Error(
-    "This package requires React hooks. Please install React 16.7+"
+    "This package requires React hooks. Please install React 16.8+"
   );
 }
 
@@ -569,6 +569,48 @@ export function getType(action) {
   }
 
   return action.displayName;
+}
+
+export function memoize(f) {
+  let lastResult;
+  let lastArgs;
+
+  return function(...args) {
+    // call f on first time or args changed
+    if (!lastArgs || lastArgs.some((value, index) => value !== args[index])) {
+      lastArgs = args;
+      lastResult = f(...lastArgs);
+    }
+    return lastResult;
+  };
+}
+
+export function usePromise(
+  factory,
+  cacheKeys = [],
+  defaultValue,
+  { onSuccess, onFailure } = {}
+) {
+  const [state, setState] = useState({ result: defaultValue });
+
+  useLayoutEffect(async () => {
+    try {
+      const result = await factory(...cacheKeys);
+      setState({
+        result
+      });
+
+      onSuccess && onSuccess(result, ...cacheKeys);
+    } catch (error) {
+      setState({
+        error
+      });
+
+      onFailure && onFailure(error, ...cacheKeys);
+    }
+  }, cacheKeys);
+
+  return [state.result, state.error];
 }
 
 function createStoreUtility(callback) {

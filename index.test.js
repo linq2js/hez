@@ -6,7 +6,8 @@ import {
   createStore,
   useStore,
   Provider,
-  createSelector
+  createSelector,
+  memoize
 } from "./index";
 
 let container;
@@ -178,4 +179,15 @@ test("selector can be use as prop name", () => {
 
   expect(value1).toEqual({ name: "test" });
   expect(state.get()).toEqual({ name: "test" });
+});
+
+test("memoized function should call only once if arguments has no change", () => {
+  let counter = 0;
+  const memoizedCounter = memoize(() => counter++);
+
+  memoizedCounter();
+  memoizedCounter();
+  memoizedCounter();
+
+  expect(counter).toBe(1);
 });
