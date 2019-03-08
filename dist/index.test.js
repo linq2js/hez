@@ -200,4 +200,26 @@ test("memoized function should call only once if arguments has no change", funct
 
   expect(counter).toBe(1);
 });
+
+test("should re-use action dispatcher", function () {
+  var store = (0, _index.createStore)();
+
+  var DoSomething = function DoSomething() {};
+
+  var UseActionsTest = function UseActionsTest() {
+    var _useActions = (0, _index.useActions)(DoSomething),
+        _useActions2 = _slicedToArray(_useActions, 1),
+        action1 = _useActions2[0];
+
+    var _useActions3 = (0, _index.useActions)(DoSomething),
+        _useActions4 = _slicedToArray(_useActions3, 1),
+        action2 = _useActions4[0];
+
+    expect(action1).toBe(action2);
+
+    return 'nothing';
+  };
+
+  (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseActionsTest)), container);
+});
 //# sourceMappingURL=index.test.js.map

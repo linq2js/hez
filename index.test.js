@@ -7,7 +7,8 @@ import {
   useStore,
   Provider,
   createSelector,
-  memoize
+  memoize,
+  useActions
 } from "./index";
 
 let container;
@@ -190,4 +191,24 @@ test("memoized function should call only once if arguments has no change", () =>
   memoizedCounter();
 
   expect(counter).toBe(1);
+});
+
+test("should re-use action dispatcher", () => {
+  const store = createStore();
+
+  const DoSomething = () => {};
+
+  const UseActionsTest = () => {
+    const [action1] = useActions(DoSomething);
+    const [action2] = useActions(DoSomething);
+
+    expect(action1).toBe(action2);
+
+    return 'nothing';
+  };
+
+  render(
+    createElement(Provider, { store }, createElement(UseActionsTest)),
+    container
+  );
 });

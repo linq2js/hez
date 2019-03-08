@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.objectTypes = exports.objectTypeProp = undefined;
+exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = undefined;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -268,18 +268,36 @@ function createStore() {
   var stateProps = {};
   var middlewares = [];
   var actionSubscriptions = {};
+  var dispatchers = new WeakMap();
   var store = _defineProperty({
     getState: getState,
     dispatch: dispatch,
     subscribe: subscribe,
     inject: inject,
-    use: use
+    use: use,
+    getDispatcher: getDispatcher
   }, objectTypeProp, objectTypes.store);
   var hasActionSubscription = void 0;
   var state = initialState;
   var lastDispatchedAction = void 0;
   var shouldNotify = false;
   var dispatchingScopes = 0;
+
+  function getDispatcher(action) {
+    var dispatcher = dispatchers.get(action);
+    if (!dispatcher) {
+      dispatcher = function dispatcher() {
+        for (var _len6 = arguments.length, args = Array(_len6), _key6 = 0; _key6 < _len6; _key6++) {
+          args[_key6] = arguments[_key6];
+        }
+
+        return dispatch.apply(undefined, [action].concat(args));
+      };
+      dispatchers.set(action, dispatcher);
+    }
+
+    return dispatcher;
+  }
 
   function subscribe(subscriber) {
     var unsubscribed = false;
@@ -344,14 +362,14 @@ function createStore() {
   }
 
   function dispatch(action) {
-    for (var _len6 = arguments.length, args = Array(_len6 > 1 ? _len6 - 1 : 0), _key6 = 1; _key6 < _len6; _key6++) {
-      args[_key6 - 1] = arguments[_key6];
+    for (var _len7 = arguments.length, args = Array(_len7 > 1 ? _len7 - 1 : 0), _key7 = 1; _key7 < _len7; _key7++) {
+      args[_key7 - 1] = arguments[_key7];
     }
 
     return middlewares.reduce(function (next, middleware) {
       return function (action) {
-        for (var _len7 = arguments.length, args = Array(_len7 > 1 ? _len7 - 1 : 0), _key7 = 1; _key7 < _len7; _key7++) {
-          args[_key7 - 1] = arguments[_key7];
+        for (var _len8 = arguments.length, args = Array(_len8 > 1 ? _len8 - 1 : 0), _key8 = 1; _key8 < _len8; _key8++) {
+          args[_key8 - 1] = arguments[_key8];
         }
 
         return middleware(next).apply(undefined, [action].concat(args));
@@ -365,8 +383,8 @@ function createStore() {
       var actions = Array.isArray(action) ? action : [action];
       var lastResult = void 0;
 
-      for (var _len8 = arguments.length, args = Array(_len8 > 1 ? _len8 - 1 : 0), _key8 = 1; _key8 < _len8; _key8++) {
-        args[_key8 - 1] = arguments[_key8];
+      for (var _len9 = arguments.length, args = Array(_len9 > 1 ? _len9 - 1 : 0), _key9 = 1; _key9 < _len9; _key9++) {
+        args[_key9 - 1] = arguments[_key9];
       }
 
       var _iteratorNormalCompletion = true;
@@ -427,13 +445,17 @@ function createStore() {
   return store;
 }
 
+var useAction = exports.useAction = function useAction() {
+  return useActions.apply(undefined, arguments)[0];
+};
+
 /**
  * useActions(store, ...actions)
  * useActions(...actions)
  */
 var useActions = exports.useActions = createStoreUtility(function (store) {
-  for (var _len9 = arguments.length, actions = Array(_len9 > 1 ? _len9 - 1 : 0), _key9 = 1; _key9 < _len9; _key9++) {
-    actions[_key9 - 1] = arguments[_key9];
+  for (var _len10 = arguments.length, actions = Array(_len10 > 1 ? _len10 - 1 : 0), _key10 = 1; _key10 < _len10; _key10++) {
+    actions[_key10 - 1] = arguments[_key10];
   }
 
   return (0, _react.useMemo)(function () {
@@ -470,13 +492,7 @@ var useActions = exports.useActions = createStoreUtility(function (store) {
     }
 
     return actions.map(function (action) {
-      return function () {
-        for (var _len10 = arguments.length, args = Array(_len10), _key10 = 0; _key10 < _len10; _key10++) {
-          args[_key10] = arguments[_key10];
-        }
-
-        return store.dispatch.apply(store, [action].concat(args));
-      };
+      return store.getDispatcher(action);
     });
   }, [store].concat(actions));
 });
@@ -667,7 +683,7 @@ function getType(action) {
     throw new Error("Invalid action. Action should be function type");
   }
   if (!action.displayName && action.name) {
-    action.displayName = action.name + "_" + generateId();
+    action.displayName = action.name + "." + generateId();
   }
 
   return action.displayName;

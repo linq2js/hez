@@ -239,12 +239,14 @@ export function createStore(initialState = {}) {
   const stateProps = {};
   const middlewares = [];
   const actionSubscriptions = {};
+  const dispatchers = new WeakMap();
   const store = {
     getState,
     dispatch,
     subscribe,
     inject,
     use,
+    getDispatcher,
     [objectTypeProp]: objectTypes.store
   };
   let hasActionSubscription;
@@ -252,6 +254,16 @@ export function createStore(initialState = {}) {
   let lastDispatchedAction;
   let shouldNotify = false;
   let dispatchingScopes = 0;
+
+  function getDispatcher(action) {
+    let dispatcher = dispatchers.get(action);
+    if (!dispatcher) {
+      dispatcher = (...args) => dispatch(action, ...args);
+      dispatchers.set(action, dispatcher);
+    }
+
+    return dispatcher;
+  }
 
   function subscribe(subscriber) {
     let unsubscribed = false;
@@ -368,6 +380,8 @@ export function createStore(initialState = {}) {
   return store;
 }
 
+export const useAction = (...args) => useActions(...args)[0];
+
 /**
  * useActions(store, ...actions)
  * useActions(...actions)
@@ -406,7 +420,7 @@ export const useActions = createStoreUtility((store, ...actions) => {
       });
     }
 
-    return actions.map(action => (...args) => store.dispatch(action, ...args));
+    return actions.map(action => store.getDispatcher(action));
   }, [store].concat(actions));
 });
 
@@ -565,7 +579,7 @@ export function getType(action) {
     throw new Error("Invalid action. Action should be function type");
   }
   if (!action.displayName && action.name) {
-    action.displayName = action.name + "_" + generateId();
+    action.displayName = action.name + "." + generateId();
   }
 
   return action.displayName;
