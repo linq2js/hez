@@ -719,37 +719,45 @@ function usePromise(factory) {
         while (1) {
           switch (_context.prev = _context.next) {
             case 0:
-              _context.prev = 0;
-              _context.next = 3;
+              if (!(typeof currentValue !== "undefined" && defaultValue === currentValue)) {
+                _context.next = 2;
+                break;
+              }
+
+              return _context.abrupt("return");
+
+            case 2:
+              _context.prev = 2;
+              _context.next = 5;
               return factory.apply(undefined, _toConsumableArray(cacheKeys));
 
-            case 3:
+            case 5:
               result = _context.sent;
 
-              setState({
+              !isUnmount && setState({
                 result: result
               });
 
               onSuccess && onSuccess.apply(undefined, [result].concat(_toConsumableArray(cacheKeys)));
-              _context.next = 12;
+              _context.next = 14;
               break;
 
-            case 8:
-              _context.prev = 8;
-              _context.t0 = _context["catch"](0);
+            case 10:
+              _context.prev = 10;
+              _context.t0 = _context["catch"](2);
 
-              setState({
+              !isUnmount && setState({
                 error: _context.t0
               });
 
               onFailure && onFailure.apply(undefined, [_context.t0].concat(_toConsumableArray(cacheKeys)));
 
-            case 12:
+            case 14:
             case "end":
               return _context.stop();
           }
         }
-      }, _callee, this, [[0, 8]]);
+      }, _callee, this, [[2, 10]]);
     }));
 
     return function effect() {
@@ -760,15 +768,22 @@ function usePromise(factory) {
   var _ref3 = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {},
       defaultValue = _ref3.defaultValue,
       onSuccess = _ref3.onSuccess,
-      onFailure = _ref3.onFailure;
+      onFailure = _ref3.onFailure,
+      currentValue = _ref3.currentValue;
 
   var _useState3 = (0, _react.useState)({ result: defaultValue }),
       _useState4 = _slicedToArray(_useState3, 2),
       state = _useState4[0],
       setState = _useState4[1];
 
+  var isUnmount = false;
+
   (0, _react.useLayoutEffect)(function () {
     effect();
+
+    return function () {
+      isUnmount = true;
+    };
   }, cacheKeys);
 
   return [state.result, state.error];

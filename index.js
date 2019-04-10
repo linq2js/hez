@@ -602,22 +602,30 @@ export function memoize(f) {
 export function usePromise(
   factory,
   cacheKeys = [],
-  { defaultValue, onSuccess, onFailure } = {}
+  { defaultValue, onSuccess, onFailure, currentValue } = {}
 ) {
   const [state, setState] = useState({ result: defaultValue });
+  let isUnmount = false;
 
   async function effect() {
+    // do nothing if nothing changed
+    if (typeof currentValue !== "undefined" && defaultValue === currentValue) {
+      return;
+    }
+
     try {
       const result = await factory(...cacheKeys);
-      setState({
-        result
-      });
+      !isUnmount &&
+        setState({
+          result
+        });
 
       onSuccess && onSuccess(result, ...cacheKeys);
     } catch (error) {
-      setState({
-        error
-      });
+      !isUnmount &&
+        setState({
+          error
+        });
 
       onFailure && onFailure(error, ...cacheKeys);
     }
@@ -625,6 +633,10 @@ export function usePromise(
 
   useLayoutEffect(() => {
     effect();
+
+    return function() {
+      isUnmount = true;
+    };
   }, cacheKeys);
 
   return [state.result, state.error];
