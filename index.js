@@ -24,6 +24,8 @@ export const objectTypes = {
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
+const cacheKeyStorage = [];
+const cachedResults = new Map();
 let uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -680,4 +682,73 @@ function isStore(obj) {
 
 function generateId() {
   return uniqueId++;
+}
+
+/**
+ * function loader(state, ...args) {
+ *   return {
+ *     loader: () => object,
+ *     keys: [cacheKey1, cacheKey2],
+ *     defaultValue: object
+ *   }
+ * }
+ */
+export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
+  const { loader, keys = [], defaultValue } =
+    store.dispatch(loaderFactory, ...args) || {};
+  const resultKey = resolveCacheKeys(keys);
+  let cachedResult = cachedResults.get(resultKey);
+  let executeLoader = false;
+  if (!cachedResult) {
+    executeLoader = true;
+    cachedResults.set(
+      resultKey,
+      (cachedResult = {
+        running: true
+      })
+    );
+  }
+
+  useLayoutEffect(() => {
+    if (!executeLoader) return;
+
+    cachedResult.promise = new Promise(async (resolve, reject) => {
+      try {
+        cachedResult.payload = await store.dispatch(loader);
+      } catch (e) {
+        reject(e);
+      } finally {
+        cachedResult.running = false;
+      }
+    });
+  });
+
+  return cachedResult.running ? defaultValue : cachedResult.payload;
+});
+
+function resolveCacheKeys(keys = []) {
+  return keys
+    .map((key, index) => {
+      if (cacheKeyStorage.length >= index) {
+        cacheKeyStorage[index] = new WeakMap();
+      }
+
+      if (key === null || isNaN(key) || typeof key === "undefined") {
+        return "";
+      }
+      let serializableKey;
+      if (typeof key === "object") {
+        serializableKey = cacheKeyStorage[index].get(key);
+        if (!serializableKey) {
+          serializableKey = cacheKeyStorage[index].__id =
+            (cacheKeyStorage[index].__id || 0) + 1;
+          cacheKeyStorage[index].set(key, serializableKey);
+        }
+      } else {
+        serializableKey = key;
+      }
+
+      return serializableKey;
+    })
+    .join(":");
 }

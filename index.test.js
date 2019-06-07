@@ -1,6 +1,5 @@
 import { createElement } from "react";
 import { render } from "react-dom";
-import { act } from "react-dom/test-utils";
 import {
   createState,
   createStore,
@@ -8,7 +7,8 @@ import {
   Provider,
   createSelector,
   memoize,
-  useActions
+  useActions,
+  useLoader
 } from "./index";
 
 let container;
@@ -204,11 +204,56 @@ test("should re-use action dispatcher", () => {
 
     expect(action1).toBe(action2);
 
-    return 'nothing';
+    return "nothing";
   };
 
   render(
     createElement(Provider, { store }, createElement(UseActionsTest)),
     container
   );
+});
+
+const ProductListLoader = (state, callback) => {
+  return {
+    defaultValue: false,
+    loader: async () => {
+      const products = [{ id: 1 }, { id: 2 }];
+      state.set({
+        products
+      });
+
+      callback(products);
+
+      return products;
+    }
+  };
+};
+
+test("useLoader", () => {
+  return new Promise(resolve => {
+    const store = createStore();
+
+    const ProductList = () => {
+      const products = useLoader(ProductListLoader, products => {
+        expect(products.length).toBe(2);
+        setTimeout(resolve);
+      });
+
+      return JSON.stringify(products);
+    };
+
+    render(
+      createElement(
+        Provider,
+        { store },
+        createElement(
+          "div",
+          {},
+          createElement(ProductList),
+          createElement(ProductList)
+        )
+      ),
+      container
+    );
+  });
 });

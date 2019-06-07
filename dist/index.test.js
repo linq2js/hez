@@ -6,8 +6,6 @@ var _react = require("react");
 
 var _reactDom = require("react-dom");
 
-var _testUtils = require("react-dom/test-utils");
-
 var _index = require("./index");
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
@@ -217,9 +215,63 @@ test("should re-use action dispatcher", function () {
 
     expect(action1).toBe(action2);
 
-    return 'nothing';
+    return "nothing";
   };
 
   (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseActionsTest)), container);
+});
+
+var ProductListLoader = function ProductListLoader(state, callback) {
+  return {
+    defaultValue: false,
+    loader: function () {
+      var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
+        var products;
+        return regeneratorRuntime.wrap(function _callee2$(_context2) {
+          while (1) {
+            switch (_context2.prev = _context2.next) {
+              case 0:
+                products = [{ id: 1 }, { id: 2 }];
+
+                state.set({
+                  products: products
+                });
+
+                callback(products);
+
+                return _context2.abrupt("return", products);
+
+              case 4:
+              case "end":
+                return _context2.stop();
+            }
+          }
+        }, _callee2, undefined);
+      }));
+
+      function loader() {
+        return _ref2.apply(this, arguments);
+      }
+
+      return loader;
+    }()
+  };
+};
+
+test("useLoader", function () {
+  return new Promise(function (resolve) {
+    var store = (0, _index.createStore)();
+
+    var ProductList = function ProductList() {
+      var products = (0, _index.useLoader)(ProductListLoader, function (products) {
+        expect(products.length).toBe(2);
+        setTimeout(resolve);
+      });
+
+      return JSON.stringify(products);
+    };
+
+    (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)("div", {}, (0, _react.createElement)(ProductList), (0, _react.createElement)(ProductList))), container);
+  });
 });
 //# sourceMappingURL=index.test.js.map

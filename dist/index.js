@@ -3,7 +3,9 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = undefined;
+exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = undefined;
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -42,6 +44,8 @@ var objectTypes = exports.objectTypes = {
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
+var cacheKeyStorage = [];
+var cachedResults = new Map();
 var uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -829,5 +833,108 @@ function isStore(obj) {
 
 function generateId() {
   return uniqueId++;
+}
+
+/**
+ * function loader(state, ...args) {
+ *   return {
+ *     loader: () => object,
+ *     keys: [cacheKey1, cacheKey2],
+ *     defaultValue: object
+ *   }
+ * }
+ */
+var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFactory) {
+  for (var _len19 = arguments.length, args = Array(_len19 > 2 ? _len19 - 2 : 0), _key19 = 2; _key19 < _len19; _key19++) {
+    args[_key19 - 2] = arguments[_key19];
+  }
+
+  var _ref5 = store.dispatch.apply(store, [loaderFactory].concat(args)) || {},
+      loader = _ref5.loader,
+      _ref5$keys = _ref5.keys,
+      keys = _ref5$keys === undefined ? [] : _ref5$keys,
+      defaultValue = _ref5.defaultValue;
+
+  var resultKey = resolveCacheKeys(keys);
+  var cachedResult = cachedResults.get(resultKey);
+  var executeLoader = false;
+  if (!cachedResult) {
+    executeLoader = true;
+    cachedResults.set(resultKey, cachedResult = {
+      running: true
+    });
+  }
+
+  (0, _react.useLayoutEffect)(function () {
+    if (!executeLoader) return;
+
+    cachedResult.promise = new Promise(function () {
+      var _ref6 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(resolve, reject) {
+        return regeneratorRuntime.wrap(function _callee2$(_context2) {
+          while (1) {
+            switch (_context2.prev = _context2.next) {
+              case 0:
+                _context2.prev = 0;
+                _context2.next = 3;
+                return store.dispatch(loader);
+
+              case 3:
+                cachedResult.payload = _context2.sent;
+                _context2.next = 9;
+                break;
+
+              case 6:
+                _context2.prev = 6;
+                _context2.t0 = _context2["catch"](0);
+
+                reject(_context2.t0);
+
+              case 9:
+                _context2.prev = 9;
+
+                cachedResult.running = false;
+                return _context2.finish(9);
+
+              case 12:
+              case "end":
+                return _context2.stop();
+            }
+          }
+        }, _callee2, undefined, [[0, 6, 9, 12]]);
+      }));
+
+      return function (_x10, _x11) {
+        return _ref6.apply(this, arguments);
+      };
+    }());
+  });
+
+  return cachedResult.running ? defaultValue : cachedResult.payload;
+});
+
+function resolveCacheKeys() {
+  var keys = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
+
+  return keys.map(function (key, index) {
+    if (cacheKeyStorage.length >= index) {
+      cacheKeyStorage[index] = new WeakMap();
+    }
+
+    if (key === null || isNaN(key) || typeof key === "undefined") {
+      return "";
+    }
+    var serializableKey = void 0;
+    if ((typeof key === "undefined" ? "undefined" : _typeof(key)) === "object") {
+      serializableKey = cacheKeyStorage[index].get(key);
+      if (!serializableKey) {
+        serializableKey = cacheKeyStorage[index].__id = (cacheKeyStorage[index].__id || 0) + 1;
+        cacheKeyStorage[index].set(key, serializableKey);
+      }
+    } else {
+      serializableKey = key;
+    }
+
+    return serializableKey;
+  }).join(":");
 }
 //# sourceMappingURL=index.js.map
