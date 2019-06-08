@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = exports.loaderStatus = undefined;
+exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.loaderContextProp = exports.objectTypes = exports.objectTypeProp = exports.loaderStatus = undefined;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -48,6 +48,7 @@ var objectTypes = exports.objectTypes = {
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
+var loaderContextProp = exports.loaderContextProp = "@@context";
 var uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -838,7 +839,7 @@ function generateId() {
 }
 
 /**
- * function loader(state, ...args) {
+ * function loaderFactory(state, ...args) {
  *   return {
  *     loader: () => object,
  *     keys: [cacheKey1, cacheKey2],
@@ -851,97 +852,125 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     args[_key19 - 2] = arguments[_key19];
   }
 
-  var loaderContextRef = (0, _react.useRef)(evalLoaderContext(store, loaderFactory, args));
+  var contextRef = (0, _react.useRef)(evalLoaderContext(store, loaderFactory, args));
 
   var _useState5 = (0, _react.useState)(),
       _useState6 = _slicedToArray(_useState5, 2),
-      refresh = _useState6[1];
+      setState = _useState6[1];
 
-  var promiseRef = (0, _react.useRef)(null);
-
-  function rerender() {
-    if (promiseRef.current !== loaderContextRef.current.promise) return;
-    refresh({});
+  function forceRender() {
+    setState({});
   }
 
   function tryExecuteLoader() {
     var _this = this;
 
-    if (loaderContextRef.current.status === loaderStatus.new) {
-      loaderContextRef.current.status = loaderStatus.loading;
-      promiseRef.current = loaderContextRef.current.promise = new Promise(function () {
-        var _ref5 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(resolve, reject) {
+    if (contextRef.current.status === loaderStatus.new) {
+      contextRef.current.status = loaderStatus.loading;
+      // using object as lock to make sure loader was triggered in same phase
+      // another triggering will create diff lock object so we must not re-render component
+      var lock = contextRef.current.lock = {};
+      clearTimeout(contextRef.current.timerId);
+      contextRef.current.promise = new Promise(function (resolve, reject) {
+        contextRef.current.timerId = setTimeout(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
+          var payload;
           return regeneratorRuntime.wrap(function _callee2$(_context2) {
             while (1) {
               switch (_context2.prev = _context2.next) {
                 case 0:
-                  _context2.prev = 0;
-                  _context2.next = 3;
-                  return store.dispatch(loaderContextRef.current.loader);
+                  if (!(lock !== contextRef.current.lock)) {
+                    _context2.next = 2;
+                    break;
+                  }
 
-                case 3:
-                  loaderContextRef.current.payload = _context2.sent;
+                  return _context2.abrupt("return");
 
-                  loaderContextRef.current.status = loaderStatus.success;
-                  setTimeout(function () {
-                    return resolve(loaderContextRef.current.payload);
-                  });
-                  _context2.next = 12;
-                  break;
+                case 2:
+                  _context2.prev = 2;
+                  _context2.next = 5;
+                  return store.dispatch(contextRef.current.loader);
+
+                case 5:
+                  payload = _context2.sent;
+
+                  if (!(lock !== contextRef.current.lock)) {
+                    _context2.next = 8;
+                    break;
+                  }
+
+                  return _context2.abrupt("return");
 
                 case 8:
-                  _context2.prev = 8;
-                  _context2.t0 = _context2["catch"](0);
 
-                  loaderContextRef.current.status = loaderStatus.fail;
+                  contextRef.current.payload = payload;
+                  contextRef.current.status = loaderStatus.success;
+                  setTimeout(function () {
+                    return resolve(contextRef.current.payload);
+                  });
+                  _context2.next = 19;
+                  break;
+
+                case 13:
+                  _context2.prev = 13;
+                  _context2.t0 = _context2["catch"](2);
+
+                  if (!(lock !== contextRef.current.lock)) {
+                    _context2.next = 17;
+                    break;
+                  }
+
+                  return _context2.abrupt("return");
+
+                case 17:
+                  contextRef.current.status = loaderStatus.fail;
                   setTimeout(function () {
                     return reject(_context2.t0);
                   });
 
-                case 12:
-                  _context2.prev = 12;
+                case 19:
+                  _context2.prev = 19;
 
-                  loaderContextRef.current.done = true;
-                  rerender();
-                  return _context2.finish(12);
+                  if (lock === contextRef.current.lock) {
+                    contextRef.current.done = true;
+                    forceRender();
+                  }
+                  return _context2.finish(19);
 
-                case 16:
+                case 22:
                 case "end":
                   return _context2.stop();
               }
             }
-          }, _callee2, _this, [[0, 8, 12, 16]]);
-        }));
+          }, _callee2, _this, [[2, 13, 19, 22]]);
+        })), contextRef.current.debounce);
+      });
 
-        return function (_x10, _x11) {
-          return _ref5.apply(this, arguments);
-        };
-      }());
       return true;
     }
     return false;
   }
 
-  (0, _react.useLayoutEffect)(function () {
+  (0, _react.useEffect)(function () {
+    // loader triggered by another component, we just listen when data loaded
     if (!tryExecuteLoader()) {
-      if (loaderContextRef.current.status === loaderStatus.loading) {
-        promiseRef.current = loaderContextRef.current.promise;
+      if (contextRef.current.status === loaderStatus.loading) {
         // re-render component once data loaded
-        loaderContextRef.current.promise.then(rerender);
+        contextRef.current.promise.then(forceRender);
       }
     }
   });
 
-  (0, _react.useLayoutEffect)(function () {
+  (0, _react.useEffect)(function () {
     return store.subscribe(function () {
-      loaderContextRef.current = evalLoaderContext(store, loaderFactory, args);
-      if (loaderContextRef.current.status === loaderStatus.new) {
-        refresh();
+      contextRef.current = evalLoaderContext(store, loaderFactory, args);
+      // there are somethings changed in cache keys, we should re-render component
+      if (contextRef.current.status === loaderStatus.new) {
+        forceRender();
       }
     });
   });
 
-  return loaderContextRef.current.returnPayload ? loaderContextRef.current.payload : loaderContextRef.current;
+  return contextRef.current;
 });
 
 function evalLoaderContext(store, loaderFactory, args) {
@@ -950,23 +979,24 @@ function evalLoaderContext(store, loaderFactory, args) {
       _ref6$keys = _ref6.keys,
       keys = _ref6$keys === undefined ? [] : _ref6$keys,
       defaultValue = _ref6.defaultValue,
-      returnPayload = _ref6.returnPayload;
+      _ref6$debounce = _ref6.debounce,
+      debounce = _ref6$debounce === undefined ? 50 : _ref6$debounce;
 
-  var meta = loaderFactory.__context;
-
-  if (!meta || meta.keys.length !== keys.length || meta.keys.some(function (x, i) {
+  if (!loaderFactory[loaderContextProp] ||
+  // verify keys are modified or not
+  loaderFactory[loaderContextProp].keys.length !== keys.length || loaderFactory[loaderContextProp].keys.some(function (x, i) {
     return x !== keys[i];
   })) {
-    loaderFactory.__context = meta = {
+    return loaderFactory[loaderContextProp] = {
       keys: keys,
       status: loaderStatus.new,
       done: false,
       defaultValue: defaultValue,
       loader: loader,
-      returnPayload: returnPayload
+      debounce: debounce
     };
   }
 
-  return meta;
+  return loaderFactory[loaderContextProp];
 }
 //# sourceMappingURL=index.js.map

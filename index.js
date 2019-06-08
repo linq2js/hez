@@ -3,6 +3,7 @@ import {
   createContext,
   memo,
   useLayoutEffect,
+  useEffect,
   useMemo,
   useState,
   useContext,
@@ -31,6 +32,7 @@ export const objectTypes = {
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
+export const loaderContextProp = "@@context";
 let uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -690,7 +692,7 @@ function generateId() {
 }
 
 /**
- * function loader(state, ...args) {
+ * function loaderFactory(state, ...args) {
  *   return {
  *     loader: () => object,
  *     keys: [cacheKey1, cacheKey2],
@@ -699,85 +701,98 @@ function generateId() {
  * }
  */
 export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
-  const loaderContextRef = useRef(
-    evalLoaderContext(store, loaderFactory, args)
-  );
-  const [, refresh] = useState();
-  const promiseRef = useRef(null);
+  const contextRef = useRef(evalLoaderContext(store, loaderFactory, args));
+  const [, setState] = useState();
 
-  function rerender() {
-    if (promiseRef.current !== loaderContextRef.current.promise) return;
-    refresh({});
+  function forceRender() {
+    setState({});
   }
 
   function tryExecuteLoader() {
-    if (loaderContextRef.current.status === loaderStatus.new) {
-      loaderContextRef.current.status = loaderStatus.loading;
-      promiseRef.current = loaderContextRef.current.promise = new Promise(
-        async (resolve, reject) => {
+    if (contextRef.current.status === loaderStatus.new) {
+      contextRef.current.status = loaderStatus.loading;
+      // using object as lock to make sure loader was triggered in same phase
+      // another triggering will create diff lock object so we must not re-render component
+      const lock = (contextRef.current.lock = {});
+      clearTimeout(contextRef.current.timerId);
+      contextRef.current.promise = new Promise((resolve, reject) => {
+        contextRef.current.timerId = setTimeout(async () => {
+          if (lock !== contextRef.current.lock) {
+            return;
+          }
+
           try {
-            loaderContextRef.current.payload = await store.dispatch(
-              loaderContextRef.current.loader
-            );
-            loaderContextRef.current.status = loaderStatus.success;
-            setTimeout(() => resolve(loaderContextRef.current.payload));
+            const payload = await store.dispatch(contextRef.current.loader);
+
+            if (lock !== contextRef.current.lock) {
+              return;
+            }
+
+            contextRef.current.payload = payload;
+            contextRef.current.status = loaderStatus.success;
+            setTimeout(() => resolve(contextRef.current.payload));
           } catch (e) {
-            loaderContextRef.current.status = loaderStatus.fail;
+            if (lock !== contextRef.current.lock) {
+              return;
+            }
+            contextRef.current.status = loaderStatus.fail;
             setTimeout(() => reject(e));
           } finally {
-            loaderContextRef.current.done = true;
-            rerender();
+            if (lock === contextRef.current.lock) {
+              contextRef.current.done = true;
+              forceRender();
+            }
           }
-        }
-      );
+        }, contextRef.current.debounce);
+      });
+
       return true;
     }
     return false;
   }
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    // loader triggered by another component, we just listen when data loaded
     if (!tryExecuteLoader()) {
-      if (loaderContextRef.current.status === loaderStatus.loading) {
-        promiseRef.current = loaderContextRef.current.promise;
+      if (contextRef.current.status === loaderStatus.loading) {
         // re-render component once data loaded
-        loaderContextRef.current.promise.then(rerender);
+        contextRef.current.promise.then(forceRender);
       }
     }
   });
 
-  useLayoutEffect(() =>
+  useEffect(() =>
     store.subscribe(() => {
-      loaderContextRef.current = evalLoaderContext(store, loaderFactory, args);
-      if (loaderContextRef.current.status === loaderStatus.new) {
-        refresh();
+      contextRef.current = evalLoaderContext(store, loaderFactory, args);
+      // there are somethings changed in cache keys, we should re-render component
+      if (contextRef.current.status === loaderStatus.new) {
+        forceRender();
       }
     })
   );
 
-  return loaderContextRef.current.returnPayload
-    ? loaderContextRef.current.payload
-    : loaderContextRef.current;
+  return contextRef.current;
 });
 
 function evalLoaderContext(store, loaderFactory, args) {
-  const { loader, keys = [], defaultValue, returnPayload } =
+  const { loader, keys = [], defaultValue, debounce = 50 } =
     store.dispatch(loaderFactory, ...args) || {};
-  let meta = loaderFactory.__context;
 
   if (
-    !meta ||
-    meta.keys.length !== keys.length ||
-    meta.keys.some((x, i) => x !== keys[i])
+    !loaderFactory[loaderContextProp] ||
+    // verify keys are modified or not
+    loaderFactory[loaderContextProp].keys.length !== keys.length ||
+    loaderFactory[loaderContextProp].keys.some((x, i) => x !== keys[i])
   ) {
-    loaderFactory.__context = meta = {
+    return (loaderFactory[loaderContextProp] = {
       keys,
       status: loaderStatus.new,
       done: false,
       defaultValue,
       loader,
-      returnPayload
-    };
+      debounce
+    });
   }
 
-  return meta;
+  return loaderFactory[loaderContextProp];
 }
