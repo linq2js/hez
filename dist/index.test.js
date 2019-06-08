@@ -6,6 +6,8 @@ var _react = require("react");
 
 var _reactDom = require("react-dom");
 
+var _testUtils = require("react-dom/test-utils");
+
 var _index = require("./index");
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
@@ -115,7 +117,9 @@ test("extract multiple values from store", function () {
     return true;
   };
 
-  (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseStoreTest)), container);
+  (0, _testUtils.act)(function () {
+    (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseStoreTest)), container);
+  });
 });
 
 test("selector should work with default value properly", function () {
@@ -218,7 +222,9 @@ test("should re-use action dispatcher", function () {
     return "nothing";
   };
 
-  (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseActionsTest)), container);
+  (0, _testUtils.act)(function () {
+    (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)(UseActionsTest)), container);
+  });
 });
 
 var ProductListLoader = function ProductListLoader(state, callback) {
@@ -271,7 +277,9 @@ test("useLoader", function () {
       return JSON.stringify(products);
     };
 
-    (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)("div", {}, (0, _react.createElement)(ProductList), (0, _react.createElement)(ProductList))), container);
+    (0, _testUtils.act)(function () {
+      (0, _reactDom.render)((0, _react.createElement)(_index.Provider, { store: store }, (0, _react.createElement)("div", {}, (0, _react.createElement)(ProductList), (0, _react.createElement)(ProductList))), container);
+    });
   });
 });
 //# sourceMappingURL=index.test.js.map

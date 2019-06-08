@@ -1,5 +1,7 @@
 import { createElement } from "react";
 import { render } from "react-dom";
+import { act } from "react-dom/test-utils";
+
 import {
   createState,
   createStore,
@@ -87,10 +89,12 @@ test("extract multiple values from store", () => {
     return true;
   };
 
-  render(
-    createElement(Provider, { store }, createElement(UseStoreTest)),
-    container
-  );
+  act(() => {
+    render(
+      createElement(Provider, { store }, createElement(UseStoreTest)),
+      container
+    );
+  });
 });
 
 test("selector should work with default value properly", () => {
@@ -207,10 +211,12 @@ test("should re-use action dispatcher", () => {
     return "nothing";
   };
 
-  render(
-    createElement(Provider, { store }, createElement(UseActionsTest)),
-    container
-  );
+  act(() => {
+    render(
+      createElement(Provider, { store }, createElement(UseActionsTest)),
+      container
+    );
+  });
 });
 
 const ProductListLoader = (state, callback) => {
@@ -242,18 +248,20 @@ test("useLoader", () => {
       return JSON.stringify(products);
     };
 
-    render(
-      createElement(
-        Provider,
-        { store },
+    act(() => {
+      render(
         createElement(
-          "div",
-          {},
-          createElement(ProductList),
-          createElement(ProductList)
-        )
-      ),
-      container
-    );
+          Provider,
+          { store },
+          createElement(
+            "div",
+            {},
+            createElement(ProductList),
+            createElement(ProductList)
+          )
+        ),
+        container
+      );
+    });
   });
 });

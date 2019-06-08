@@ -3,9 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = undefined;
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.objectTypes = exports.objectTypeProp = exports.loaderStatus = undefined;
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -32,6 +30,12 @@ if (!_react.useMemo) {
   throw new Error("This package requires React hooks. Please install React 16.8+");
 }
 
+var loaderStatus = exports.loaderStatus = {
+  new: 0,
+  loading: 1,
+  success: 2,
+  fail: 3
+};
 var defaultSelector = function defaultSelector(state) {
   return state;
 };
@@ -44,8 +48,6 @@ var objectTypes = exports.objectTypes = {
 var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
-var cacheKeyStorage = [];
-var cachedResults = new Map();
 var uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -849,92 +851,122 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     args[_key19 - 2] = arguments[_key19];
   }
 
-  var _ref5 = store.dispatch.apply(store, [loaderFactory].concat(args)) || {},
-      loader = _ref5.loader,
-      _ref5$keys = _ref5.keys,
-      keys = _ref5$keys === undefined ? [] : _ref5$keys,
-      defaultValue = _ref5.defaultValue;
+  var loaderContextRef = (0, _react.useRef)(evalLoaderContext(store, loaderFactory, args));
 
-  var resultKey = resolveCacheKeys(keys);
-  var cachedResult = cachedResults.get(resultKey);
-  var executeLoader = false;
-  if (!cachedResult) {
-    executeLoader = true;
-    cachedResults.set(resultKey, cachedResult = {
-      running: true
-    });
+  var _useState5 = (0, _react.useState)(),
+      _useState6 = _slicedToArray(_useState5, 2),
+      refresh = _useState6[1];
+
+  var promiseRef = (0, _react.useRef)(null);
+
+  function rerender() {
+    if (promiseRef.current !== loaderContextRef.current.promise) return;
+    refresh({});
+  }
+
+  function tryExecuteLoader() {
+    var _this = this;
+
+    if (loaderContextRef.current.status === loaderStatus.new) {
+      loaderContextRef.current.status = loaderStatus.loading;
+      promiseRef.current = loaderContextRef.current.promise = new Promise(function () {
+        var _ref5 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(resolve, reject) {
+          return regeneratorRuntime.wrap(function _callee2$(_context2) {
+            while (1) {
+              switch (_context2.prev = _context2.next) {
+                case 0:
+                  _context2.prev = 0;
+                  _context2.next = 3;
+                  return store.dispatch(loaderContextRef.current.loader);
+
+                case 3:
+                  loaderContextRef.current.payload = _context2.sent;
+
+                  loaderContextRef.current.status = loaderStatus.success;
+                  setTimeout(function () {
+                    return resolve(loaderContextRef.current.payload);
+                  });
+                  _context2.next = 12;
+                  break;
+
+                case 8:
+                  _context2.prev = 8;
+                  _context2.t0 = _context2["catch"](0);
+
+                  loaderContextRef.current.status = loaderStatus.fail;
+                  setTimeout(function () {
+                    return reject(_context2.t0);
+                  });
+
+                case 12:
+                  _context2.prev = 12;
+
+                  loaderContextRef.current.done = true;
+                  rerender();
+                  return _context2.finish(12);
+
+                case 16:
+                case "end":
+                  return _context2.stop();
+              }
+            }
+          }, _callee2, _this, [[0, 8, 12, 16]]);
+        }));
+
+        return function (_x10, _x11) {
+          return _ref5.apply(this, arguments);
+        };
+      }());
+      return true;
+    }
+    return false;
   }
 
   (0, _react.useLayoutEffect)(function () {
-    if (!executeLoader) return;
-
-    cachedResult.promise = new Promise(function () {
-      var _ref6 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(resolve, reject) {
-        return regeneratorRuntime.wrap(function _callee2$(_context2) {
-          while (1) {
-            switch (_context2.prev = _context2.next) {
-              case 0:
-                _context2.prev = 0;
-                _context2.next = 3;
-                return store.dispatch(loader);
-
-              case 3:
-                cachedResult.payload = _context2.sent;
-                _context2.next = 9;
-                break;
-
-              case 6:
-                _context2.prev = 6;
-                _context2.t0 = _context2["catch"](0);
-
-                reject(_context2.t0);
-
-              case 9:
-                _context2.prev = 9;
-
-                cachedResult.running = false;
-                return _context2.finish(9);
-
-              case 12:
-              case "end":
-                return _context2.stop();
-            }
-          }
-        }, _callee2, undefined, [[0, 6, 9, 12]]);
-      }));
-
-      return function (_x10, _x11) {
-        return _ref6.apply(this, arguments);
-      };
-    }());
+    if (!tryExecuteLoader()) {
+      if (loaderContextRef.current.status === loaderStatus.loading) {
+        promiseRef.current = loaderContextRef.current.promise;
+        // re-render component once data loaded
+        loaderContextRef.current.promise.then(rerender);
+      }
+    }
   });
 
-  return cachedResult.running ? defaultValue : cachedResult.payload;
+  (0, _react.useLayoutEffect)(function () {
+    return store.subscribe(function () {
+      loaderContextRef.current = evalLoaderContext(store, loaderFactory, args);
+      if (loaderContextRef.current.status === loaderStatus.new) {
+        refresh();
+      }
+    });
+  });
+
+  return loaderContextRef.current.returnPayload ? loaderContextRef.current.payload : loaderContextRef.current;
 });
 
-function resolveCacheKeys() {
-  var keys = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
+function evalLoaderContext(store, loaderFactory, args) {
+  var _ref6 = store.dispatch.apply(store, [loaderFactory].concat(_toConsumableArray(args))) || {},
+      loader = _ref6.loader,
+      _ref6$keys = _ref6.keys,
+      keys = _ref6$keys === undefined ? [] : _ref6$keys,
+      defaultValue = _ref6.defaultValue,
+      returnPayload = _ref6.returnPayload;
 
-  return keys.map(function (key, index) {
-    if (cacheKeyStorage.length >= index) {
-      cacheKeyStorage[index] = new WeakMap();
-    }
+  var meta = loaderFactory.__context;
 
-    if (key === null || isNaN(key) || typeof key === "undefined") {
-      return "";
-    }
-    var serializableKey = void 0;
-    if ((typeof key === "undefined" ? "undefined" : _typeof(key)) === "object") {
-      serializableKey = cacheKeyStorage[index].get(key);
-      if (!serializableKey) {
-        serializableKey = cacheKeyStorage[index].__id = (cacheKeyStorage[index].__id || 0) + 1;
-        cacheKeyStorage[index].set(key, serializableKey);
-      }
-    } else {
-      serializableKey = key;
-    }
+  if (!meta || meta.keys.length !== keys.length || meta.keys.some(function (x, i) {
+    return x !== keys[i];
+  })) {
+    loaderFactory.__context = meta = {
+      keys: keys,
+      status: loaderStatus.new,
+      done: false,
+      defaultValue: defaultValue,
+      loader: loader,
+      returnPayload: returnPayload
+    };
+  }
 
-    return serializableKey;
-  }).join(":");
+  return meta;
 }
 //# sourceMappingURL=index.js.map

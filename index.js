@@ -5,7 +5,8 @@ import {
   useLayoutEffect,
   useMemo,
   useState,
-  useContext
+  useContext,
+  useRef
 } from "react";
 
 if (!useMemo) {
@@ -14,6 +15,12 @@ if (!useMemo) {
   );
 }
 
+export const loaderStatus = {
+  new: 0,
+  loading: 1,
+  success: 2,
+  fail: 3
+};
 const defaultSelector = state => state;
 const storeContext = createContext(null);
 export const objectTypeProp = "@@objectType";
@@ -24,8 +31,6 @@ export const objectTypes = {
 const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
-const cacheKeyStorage = [];
-const cachedResults = new Map();
 let uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -694,61 +699,85 @@ function generateId() {
  * }
  */
 export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
-  const { loader, keys = [], defaultValue } =
-    store.dispatch(loaderFactory, ...args) || {};
-  const resultKey = resolveCacheKeys(keys);
-  let cachedResult = cachedResults.get(resultKey);
-  let executeLoader = false;
-  if (!cachedResult) {
-    executeLoader = true;
-    cachedResults.set(
-      resultKey,
-      (cachedResult = {
-        running: true
-      })
-    );
+  const loaderContextRef = useRef(
+    evalLoaderContext(store, loaderFactory, args)
+  );
+  const [, refresh] = useState();
+  const promiseRef = useRef(null);
+
+  function rerender() {
+    if (promiseRef.current !== loaderContextRef.current.promise) return;
+    refresh({});
+  }
+
+  function tryExecuteLoader() {
+    if (loaderContextRef.current.status === loaderStatus.new) {
+      loaderContextRef.current.status = loaderStatus.loading;
+      promiseRef.current = loaderContextRef.current.promise = new Promise(
+        async (resolve, reject) => {
+          try {
+            loaderContextRef.current.payload = await store.dispatch(
+              loaderContextRef.current.loader
+            );
+            loaderContextRef.current.status = loaderStatus.success;
+            setTimeout(() => resolve(loaderContextRef.current.payload));
+          } catch (e) {
+            loaderContextRef.current.status = loaderStatus.fail;
+            setTimeout(() => reject(e));
+          } finally {
+            loaderContextRef.current.done = true;
+            rerender();
+          }
+        }
+      );
+      return true;
+    }
+    return false;
   }
 
   useLayoutEffect(() => {
-    if (!executeLoader) return;
-
-    cachedResult.promise = new Promise(async (resolve, reject) => {
-      try {
-        cachedResult.payload = await store.dispatch(loader);
-      } catch (e) {
-        reject(e);
-      } finally {
-        cachedResult.running = false;
+    if (!tryExecuteLoader()) {
+      if (loaderContextRef.current.status === loaderStatus.loading) {
+        promiseRef.current = loaderContextRef.current.promise;
+        // re-render component once data loaded
+        loaderContextRef.current.promise.then(rerender);
       }
-    });
+    }
   });
 
-  return cachedResult.running ? defaultValue : cachedResult.payload;
+  useLayoutEffect(() =>
+    store.subscribe(() => {
+      loaderContextRef.current = evalLoaderContext(store, loaderFactory, args);
+      if (loaderContextRef.current.status === loaderStatus.new) {
+        refresh();
+      }
+    })
+  );
+
+  return loaderContextRef.current.returnPayload
+    ? loaderContextRef.current.payload
+    : loaderContextRef.current;
 });
 
-function resolveCacheKeys(keys = []) {
-  return keys
-    .map((key, index) => {
-      if (cacheKeyStorage.length >= index) {
-        cacheKeyStorage[index] = new WeakMap();
-      }
+function evalLoaderContext(store, loaderFactory, args) {
+  const { loader, keys = [], defaultValue, returnPayload } =
+    store.dispatch(loaderFactory, ...args) || {};
+  let meta = loaderFactory.__context;
 
-      if (key === null || isNaN(key) || typeof key === "undefined") {
-        return "";
-      }
-      let serializableKey;
-      if (typeof key === "object") {
-        serializableKey = cacheKeyStorage[index].get(key);
-        if (!serializableKey) {
-          serializableKey = cacheKeyStorage[index].__id =
-            (cacheKeyStorage[index].__id || 0) + 1;
-          cacheKeyStorage[index].set(key, serializableKey);
-        }
-      } else {
-        serializableKey = key;
-      }
+  if (
+    !meta ||
+    meta.keys.length !== keys.length ||
+    meta.keys.some((x, i) => x !== keys[i])
+  ) {
+    loaderFactory.__context = meta = {
+      keys,
+      status: loaderStatus.new,
+      done: false,
+      defaultValue,
+      loader,
+      returnPayload
+    };
+  }
 
-      return serializableKey;
-    })
-    .join(":");
+  return meta;
 }
