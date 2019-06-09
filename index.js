@@ -722,7 +722,10 @@ export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
           }
 
           try {
-            const payload = await store.dispatch(contextRef.current.loader);
+            const payload = await store.dispatch(
+              contextRef.current.loader,
+              ...contextRef.current.keys
+            );
 
             if (lock !== contextRef.current.lock) {
               return;
@@ -771,11 +774,13 @@ export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
     })
   );
 
-  return contextRef.current;
+  return contextRef.current.project
+    ? contextRef.current.project(contextRef.current)
+    : contextRef.current;
 });
 
 function evalLoaderContext(store, loaderFactory, args) {
-  const { loader, keys = [], defaultValue, debounce = 50 } =
+  const { loader, keys = [], defaultValue, debounce = 50, project } =
     store.dispatch(loaderFactory, ...args) || {};
 
   if (
@@ -790,7 +795,8 @@ function evalLoaderContext(store, loaderFactory, args) {
       done: false,
       defaultValue,
       loader,
-      debounce
+      debounce,
+      project
     });
   }
 

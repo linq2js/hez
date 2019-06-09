@@ -888,7 +888,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
                 case 2:
                   _context2.prev = 2;
                   _context2.next = 5;
-                  return store.dispatch(contextRef.current.loader);
+                  return store.dispatch.apply(store, [contextRef.current.loader].concat(_toConsumableArray(contextRef.current.keys)));
 
                 case 5:
                   payload = _context2.sent;
@@ -970,7 +970,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     });
   });
 
-  return contextRef.current;
+  return contextRef.current.project ? contextRef.current.project(contextRef.current) : contextRef.current;
 });
 
 function evalLoaderContext(store, loaderFactory, args) {
@@ -980,7 +980,8 @@ function evalLoaderContext(store, loaderFactory, args) {
       keys = _ref6$keys === undefined ? [] : _ref6$keys,
       defaultValue = _ref6.defaultValue,
       _ref6$debounce = _ref6.debounce,
-      debounce = _ref6$debounce === undefined ? 50 : _ref6$debounce;
+      debounce = _ref6$debounce === undefined ? 50 : _ref6$debounce,
+      project = _ref6.project;
 
   if (!loaderFactory[loaderContextProp] ||
   // verify keys are modified or not
@@ -993,7 +994,8 @@ function evalLoaderContext(store, loaderFactory, args) {
       done: false,
       defaultValue: defaultValue,
       loader: loader,
-      debounce: debounce
+      debounce: debounce,
+      project: project
     };
   }
 
