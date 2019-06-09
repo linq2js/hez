@@ -783,22 +783,25 @@ function evalLoaderContext(store, loaderFactory, args) {
   const { loader, keys = [], defaultValue, debounce = 50, project } =
     store.dispatch(loaderFactory, ...args) || {};
 
+  let context = loaderFactory[loaderContextProp];
+
   if (
-    !loaderFactory[loaderContextProp] ||
+    !context ||
     // verify keys are modified or not
-    loaderFactory[loaderContextProp].keys.length !== keys.length ||
-    loaderFactory[loaderContextProp].keys.some((x, i) => x !== keys[i])
+    context.keys.length !== keys.length ||
+    context.keys.some((x, i) => x !== keys[i])
   ) {
-    return (loaderFactory[loaderContextProp] = {
+    return (loaderFactory[loaderContextProp] = context = {
       keys,
       status: loaderStatus.new,
       done: false,
       defaultValue,
       loader,
       debounce,
-      project
+      project,
+      prevPayload: context ? context.payload : undefined
     });
   }
 
-  return loaderFactory[loaderContextProp];
+  return context;
 }

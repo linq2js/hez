@@ -983,22 +983,25 @@ function evalLoaderContext(store, loaderFactory, args) {
       debounce = _ref6$debounce === undefined ? 50 : _ref6$debounce,
       project = _ref6.project;
 
-  if (!loaderFactory[loaderContextProp] ||
+  var context = loaderFactory[loaderContextProp];
+
+  if (!context ||
   // verify keys are modified or not
-  loaderFactory[loaderContextProp].keys.length !== keys.length || loaderFactory[loaderContextProp].keys.some(function (x, i) {
+  context.keys.length !== keys.length || context.keys.some(function (x, i) {
     return x !== keys[i];
   })) {
-    return loaderFactory[loaderContextProp] = {
+    return loaderFactory[loaderContextProp] = context = {
       keys: keys,
       status: loaderStatus.new,
       done: false,
       defaultValue: defaultValue,
       loader: loader,
       debounce: debounce,
-      project: project
+      project: project,
+      prevPayload: context ? context.payload : undefined
     };
   }
 
-  return loaderFactory[loaderContextProp];
+  return context;
 }
 //# sourceMappingURL=index.js.map
