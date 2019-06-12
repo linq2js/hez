@@ -33,6 +33,7 @@ const defaultInjectedProps = {};
 const defaultState = {};
 const noop = () => {};
 export const loaderContextProp = "@@context";
+export const noChange = {};
 let uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -713,11 +714,11 @@ export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
       contextRef.current.status = loaderStatus.loading;
       // using object as lock to make sure loader was triggered in same phase
       // another triggering will create diff lock object so we must not re-render component
-      const lock = (contextRef.current.lock = {});
+      const lock = contextRef.current;
       clearTimeout(contextRef.current.timerId);
       contextRef.current.promise = new Promise((resolve, reject) => {
         contextRef.current.timerId = setTimeout(async () => {
-          if (lock !== contextRef.current.lock) {
+          if (lock !== contextRef.current) {
             return;
           }
 
@@ -727,21 +728,23 @@ export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
               ...contextRef.current.keys
             );
 
-            if (lock !== contextRef.current.lock) {
+            if (lock !== contextRef.current) {
               return;
             }
 
-            contextRef.current.payload = payload;
+            contextRef.current.payload =
+              // sometimes you dont want to update payload, just keep prev one
+              payload === noChange ? contextRef.current.prevPayload : payload;
             contextRef.current.status = loaderStatus.success;
             setTimeout(() => resolve(contextRef.current.payload));
           } catch (e) {
-            if (lock !== contextRef.current.lock) {
+            if (lock !== contextRef.current) {
               return;
             }
             contextRef.current.status = loaderStatus.fail;
             setTimeout(() => reject(e));
           } finally {
-            if (lock === contextRef.current.lock) {
+            if (lock === contextRef.current) {
               contextRef.current.done = true;
               forceRender();
             }
@@ -799,7 +802,17 @@ function evalLoaderContext(store, loaderFactory, args) {
       loader,
       debounce,
       project,
-      prevPayload: context ? context.payload : undefined
+      prevPayload: context ? context.payload : undefined,
+      forceReload() {
+        if (!context) return;
+        delete loaderFactory[loaderContextProp];
+        context = null;
+        store.dispatch(state => {
+          state.set({
+            ...store.getState()
+          });
+        });
+      }
     });
   }
 

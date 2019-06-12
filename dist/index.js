@@ -3,7 +3,9 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.loaderContextProp = exports.objectTypes = exports.objectTypeProp = exports.loaderStatus = undefined;
+exports.useLoader = exports.withActions = exports.withState = exports.useStoreMemo = exports.useStore = exports.useActions = exports.useAction = exports.noChange = exports.loaderContextProp = exports.objectTypes = exports.objectTypeProp = exports.loaderStatus = undefined;
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
@@ -49,6 +51,7 @@ var defaultInjectedProps = {};
 var defaultState = {};
 var noop = function noop() {};
 var loaderContextProp = exports.loaderContextProp = "@@context";
+var noChange = exports.noChange = {};
 var uniqueId = Math.floor(new Date().getTime() * Math.random());
 
 /**
@@ -869,7 +872,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
       contextRef.current.status = loaderStatus.loading;
       // using object as lock to make sure loader was triggered in same phase
       // another triggering will create diff lock object so we must not re-render component
-      var lock = contextRef.current.lock = {};
+      var lock = contextRef.current;
       clearTimeout(contextRef.current.timerId);
       contextRef.current.promise = new Promise(function (resolve, reject) {
         contextRef.current.timerId = setTimeout(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
@@ -878,7 +881,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
             while (1) {
               switch (_context2.prev = _context2.next) {
                 case 0:
-                  if (!(lock !== contextRef.current.lock)) {
+                  if (!(lock !== contextRef.current)) {
                     _context2.next = 2;
                     break;
                   }
@@ -893,7 +896,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
                 case 5:
                   payload = _context2.sent;
 
-                  if (!(lock !== contextRef.current.lock)) {
+                  if (!(lock !== contextRef.current)) {
                     _context2.next = 8;
                     break;
                   }
@@ -902,7 +905,9 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
 
                 case 8:
 
-                  contextRef.current.payload = payload;
+                  contextRef.current.payload =
+                  // sometimes you dont want to update payload, just keep prev one
+                  payload === noChange ? contextRef.current.prevPayload : payload;
                   contextRef.current.status = loaderStatus.success;
                   setTimeout(function () {
                     return resolve(contextRef.current.payload);
@@ -914,7 +919,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
                   _context2.prev = 13;
                   _context2.t0 = _context2["catch"](2);
 
-                  if (!(lock !== contextRef.current.lock)) {
+                  if (!(lock !== contextRef.current)) {
                     _context2.next = 17;
                     break;
                   }
@@ -930,7 +935,7 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
                 case 19:
                   _context2.prev = 19;
 
-                  if (lock === contextRef.current.lock) {
+                  if (lock === contextRef.current) {
                     contextRef.current.done = true;
                     forceRender();
                   }
@@ -998,7 +1003,15 @@ function evalLoaderContext(store, loaderFactory, args) {
       loader: loader,
       debounce: debounce,
       project: project,
-      prevPayload: context ? context.payload : undefined
+      prevPayload: context ? context.payload : undefined,
+      forceReload: function forceReload() {
+        if (!context) return;
+        delete loaderFactory[loaderContextProp];
+        context = null;
+        store.dispatch(function (state) {
+          state.set(_extends({}, store.getState()));
+        });
+      }
     };
   }
 
