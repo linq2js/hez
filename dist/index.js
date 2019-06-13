@@ -865,99 +865,9 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     setState({});
   }
 
-  function tryExecuteLoader() {
-    var _this = this;
-
-    if (contextRef.current.status === loaderStatus.new) {
-      contextRef.current.status = loaderStatus.loading;
-      // using object as lock to make sure loader was triggered in same phase
-      // another triggering will create diff lock object so we must not re-render component
-      var lock = contextRef.current;
-      clearTimeout(contextRef.current.timerId);
-      contextRef.current.promise = new Promise(function (resolve, reject) {
-        contextRef.current.timerId = setTimeout(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
-          var payload;
-          return regeneratorRuntime.wrap(function _callee2$(_context2) {
-            while (1) {
-              switch (_context2.prev = _context2.next) {
-                case 0:
-                  if (!(lock !== contextRef.current)) {
-                    _context2.next = 2;
-                    break;
-                  }
-
-                  return _context2.abrupt("return");
-
-                case 2:
-                  _context2.prev = 2;
-                  _context2.next = 5;
-                  return store.dispatch.apply(store, [contextRef.current.loader].concat(_toConsumableArray(contextRef.current.keys)));
-
-                case 5:
-                  payload = _context2.sent;
-
-                  if (!(lock !== contextRef.current)) {
-                    _context2.next = 8;
-                    break;
-                  }
-
-                  return _context2.abrupt("return");
-
-                case 8:
-
-                  contextRef.current.payload =
-                  // sometimes you dont want to update payload, just keep prev one
-                  payload === noChange ? contextRef.current.prevPayload : payload;
-                  contextRef.current.status = loaderStatus.success;
-                  setTimeout(function () {
-                    return resolve(contextRef.current.payload);
-                  });
-                  _context2.next = 19;
-                  break;
-
-                case 13:
-                  _context2.prev = 13;
-                  _context2.t0 = _context2["catch"](2);
-
-                  if (!(lock !== contextRef.current)) {
-                    _context2.next = 17;
-                    break;
-                  }
-
-                  return _context2.abrupt("return");
-
-                case 17:
-                  contextRef.current.status = loaderStatus.fail;
-                  setTimeout(function () {
-                    return reject(_context2.t0);
-                  });
-
-                case 19:
-                  _context2.prev = 19;
-
-                  if (lock === contextRef.current) {
-                    contextRef.current.done = true;
-                    forceRender();
-                  }
-                  return _context2.finish(19);
-
-                case 22:
-                case "end":
-                  return _context2.stop();
-              }
-            }
-          }, _callee2, _this, [[2, 13, 19, 22]]);
-        })), contextRef.current.debounce);
-      });
-
-      return true;
-    }
-    return false;
-  }
-
   (0, _react.useEffect)(function () {
     // loader triggered by another component, we just listen when data loaded
-    if (!tryExecuteLoader()) {
+    if (!tryExecuteLoader(contextRef, store, forceRender)) {
       if (contextRef.current.status === loaderStatus.loading) {
         // re-render component once data loaded
         contextRef.current.promise.then(forceRender);
@@ -978,11 +888,117 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
   return contextRef.current.project ? contextRef.current.project(contextRef.current) : contextRef.current;
 });
 
-function evalLoaderContext(store, loaderFactory, args) {
+function tryExecuteLoader(contextRef, store, forceRender) {
+  var _this = this;
+
+  if (contextRef.current.status === loaderStatus.new) {
+    contextRef.current.status = loaderStatus.loading;
+    // using object as lock to make sure loader was triggered in same phase
+    // another triggering will create diff lock object so we must not re-render component
+    var lock = contextRef.current;
+    clearTimeout(contextRef.current.timerId);
+    contextRef.current.promise = new Promise(function (resolve, reject) {
+      contextRef.current.timerId = setTimeout(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
+        var requiredLoaders, requiredLoaderResults, payload;
+        return regeneratorRuntime.wrap(function _callee2$(_context2) {
+          while (1) {
+            switch (_context2.prev = _context2.next) {
+              case 0:
+                if (!(lock !== contextRef.current)) {
+                  _context2.next = 2;
+                  break;
+                }
+
+                return _context2.abrupt("return");
+
+              case 2:
+                requiredLoaders = contextRef.current.require.map(function (loaderFactory) {
+                  var ref = {
+                    current: evalLoaderContext(store, loaderFactory)
+                  };
+                  tryExecuteLoader(ref, store, forceRender);
+                  return ref.current.promise;
+                });
+                _context2.next = 5;
+                return Promise.all(requiredLoaders);
+
+              case 5:
+                requiredLoaderResults = _context2.sent;
+                _context2.prev = 6;
+                _context2.next = 9;
+                return store.dispatch.apply(store, [contextRef.current.loader].concat(_toConsumableArray(requiredLoaderResults), _toConsumableArray(contextRef.current.keys)));
+
+              case 9:
+                payload = _context2.sent;
+
+                if (!(lock !== contextRef.current)) {
+                  _context2.next = 12;
+                  break;
+                }
+
+                return _context2.abrupt("return");
+
+              case 12:
+
+                contextRef.current.payload =
+                // sometimes you dont want to update payload, just keep prev one
+                payload === noChange ? contextRef.current.prevPayload : payload;
+                contextRef.current.status = loaderStatus.success;
+                setTimeout(function () {
+                  return resolve(contextRef.current.payload);
+                });
+                _context2.next = 23;
+                break;
+
+              case 17:
+                _context2.prev = 17;
+                _context2.t0 = _context2["catch"](6);
+
+                if (!(lock !== contextRef.current)) {
+                  _context2.next = 21;
+                  break;
+                }
+
+                return _context2.abrupt("return");
+
+              case 21:
+                contextRef.current.status = loaderStatus.fail;
+                setTimeout(function () {
+                  return reject(_context2.t0);
+                });
+
+              case 23:
+                _context2.prev = 23;
+
+                if (lock === contextRef.current) {
+                  contextRef.current.done = true;
+                  forceRender();
+                }
+                return _context2.finish(23);
+
+              case 26:
+              case "end":
+                return _context2.stop();
+            }
+          }
+        }, _callee2, _this, [[6, 17, 23, 26]]);
+      })), contextRef.current.debounce);
+    });
+
+    return true;
+  }
+  return false;
+}
+
+function evalLoaderContext(store, loaderFactory) {
+  var args = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : [];
+
   var _ref6 = store.dispatch.apply(store, [loaderFactory].concat(_toConsumableArray(args))) || {},
       loader = _ref6.loader,
       _ref6$keys = _ref6.keys,
       keys = _ref6$keys === undefined ? [] : _ref6$keys,
+      _ref6$require = _ref6.require,
+      require = _ref6$require === undefined ? [] : _ref6$require,
       defaultValue = _ref6.defaultValue,
       _ref6$debounce = _ref6.debounce,
       debounce = _ref6$debounce === undefined ? 50 : _ref6$debounce,
@@ -997,6 +1013,7 @@ function evalLoaderContext(store, loaderFactory, args) {
   })) {
     return loaderFactory[loaderContextProp] = context = {
       keys: keys,
+      require: require,
       status: loaderStatus.new,
       done: false,
       defaultValue: defaultValue,
