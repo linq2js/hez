@@ -747,22 +747,20 @@ function tryExecuteLoader(contextRef, store, forceRender) {
           return;
         }
 
-        const requiredLoaders = contextRef.current.require.map(
-          loaderFactory => {
-            const ref = {
-              current: evalLoaderContext(store, loaderFactory)
-            };
-            tryExecuteLoader(ref, store, forceRender);
-            return ref.current.promise;
-          }
-        );
+        const promises = contextRef.current.require.map(context => {
+          const ref = {
+            current: context
+          };
+          tryExecuteLoader(ref, store, forceRender);
+          return ref.current.promise;
+        });
 
-        const requiredLoaderResults = await Promise.all(requiredLoaders);
+        const results = await Promise.all(promises);
 
         try {
           const payload = await store.dispatch(
             contextRef.current.loader,
-            ...requiredLoaderResults,
+            ...results,
             ...contextRef.current.keys
           );
 
@@ -806,16 +804,18 @@ function evalLoaderContext(store, loaderFactory, args = []) {
   } = store.dispatch(loaderFactory, ...args) || {};
 
   let context = loaderFactory[loaderContextProp];
+  const requiredLoaders = require.map(lf => evalLoaderContext(store, lf));
 
   if (
     !context ||
     // verify keys are modified or not
     context.keys.length !== keys.length ||
-    context.keys.some((x, i) => x !== keys[i])
+    context.keys.some((x, i) => x !== keys[i]) ||
+    context.require.some((x, i) => x !== requiredLoaders[i])
   ) {
     return (loaderFactory[loaderContextProp] = context = {
       keys,
-      require,
+      require: requiredLoaders,
       status: loaderStatus.new,
       done: false,
       defaultValue,

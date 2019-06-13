@@ -899,7 +899,7 @@ function tryExecuteLoader(contextRef, store, forceRender) {
     clearTimeout(contextRef.current.timerId);
     contextRef.current.promise = new Promise(function (resolve, reject) {
       contextRef.current.timerId = setTimeout(_asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
-        var requiredLoaders, requiredLoaderResults, payload;
+        var promises, results, payload;
         return regeneratorRuntime.wrap(function _callee2$(_context2) {
           while (1) {
             switch (_context2.prev = _context2.next) {
@@ -912,21 +912,21 @@ function tryExecuteLoader(contextRef, store, forceRender) {
                 return _context2.abrupt("return");
 
               case 2:
-                requiredLoaders = contextRef.current.require.map(function (loaderFactory) {
+                promises = contextRef.current.require.map(function (context) {
                   var ref = {
-                    current: evalLoaderContext(store, loaderFactory)
+                    current: context
                   };
                   tryExecuteLoader(ref, store, forceRender);
                   return ref.current.promise;
                 });
                 _context2.next = 5;
-                return Promise.all(requiredLoaders);
+                return Promise.all(promises);
 
               case 5:
-                requiredLoaderResults = _context2.sent;
+                results = _context2.sent;
                 _context2.prev = 6;
                 _context2.next = 9;
-                return store.dispatch.apply(store, [contextRef.current.loader].concat(_toConsumableArray(requiredLoaderResults), _toConsumableArray(contextRef.current.keys)));
+                return store.dispatch.apply(store, [contextRef.current.loader].concat(_toConsumableArray(results), _toConsumableArray(contextRef.current.keys)));
 
               case 9:
                 payload = _context2.sent;
@@ -1005,15 +1005,20 @@ function evalLoaderContext(store, loaderFactory) {
       project = _ref6.project;
 
   var context = loaderFactory[loaderContextProp];
+  var requiredLoaders = require.map(function (lf) {
+    return evalLoaderContext(store, lf);
+  });
 
   if (!context ||
   // verify keys are modified or not
   context.keys.length !== keys.length || context.keys.some(function (x, i) {
     return x !== keys[i];
+  }) || context.require.some(function (x, i) {
+    return x !== requiredLoaders[i];
   })) {
     return loaderFactory[loaderContextProp] = context = {
       keys: keys,
-      require: require,
+      require: requiredLoaders,
       status: loaderStatus.new,
       done: false,
       defaultValue: defaultValue,
