@@ -19,6 +19,7 @@ exports.createActionGroup = createActionGroup;
 exports.getType = getType;
 exports.memoize = memoize;
 exports.usePromise = usePromise;
+exports.withLoader = withLoader;
 
 var _react = require("react");
 
@@ -1038,5 +1039,33 @@ function evalLoaderContext(store, loaderFactory) {
   }
 
   return context;
+}
+
+function withLoader(loaders, fallback) {
+  var hook = useLoader;
+  var entries = Object.entries(loaders || {});
+  return function (Comp) {
+    return function (props) {
+      var newProps = _extends({}, props);
+      var allDone = entries.every(function (_ref7) {
+        var _ref8 = _slicedToArray(_ref7, 2),
+            propName = _ref8[0],
+            loader = _ref8[1];
+
+        var _hook = hook(loader),
+            payload = _hook.payload,
+            done = _hook.done;
+
+        newProps[propName] = payload;
+        return done;
+      });
+
+      if (allDone) {
+        return (0, _react.createElement)(Comp, newProps);
+      }
+
+      return fallback ? (0, _react.createElement)(fallback, props) : null;
+    };
+  };
 }
 //# sourceMappingURL=index.js.map

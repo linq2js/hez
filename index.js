@@ -838,3 +838,24 @@ function evalLoaderContext(store, loaderFactory, args = []) {
 
   return context;
 }
+
+export function withLoader(loaders, fallback) {
+  const hook = useLoader;
+  const entries = Object.entries(loaders || {});
+  return Comp => props => {
+    const newProps = {
+      ...props
+    };
+    const allDone = entries.every(([propName, loader]) => {
+      const { payload, done } = hook(loader);
+      newProps[propName] = payload;
+      return done;
+    });
+
+    if (allDone) {
+      return createElement(Comp, newProps);
+    }
+
+    return fallback ? createElement(fallback, props) : null;
+  };
+}
