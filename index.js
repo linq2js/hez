@@ -452,13 +452,13 @@ export const useStore = createStoreUtility(
     const selectorWrapper = state =>
       isMultipleSelectors
         ? // extract multiple state values
-          selector.map(subSelector => subSelector(state))
+        selector.map(subSelector => subSelector(state))
         : selectorKeys
         ? // extract values by object keys
-          selectorKeys.reduce((obj, key) => {
-            obj[key] = selector[key](state);
-            return obj;
-          }, {}) // extract single value
+        selectorKeys.reduce((obj, key) => {
+          obj[key] = selector[key](state);
+          return obj;
+        }, {}) // extract single value
         : selector(state);
 
     const globalState = useMemo(() => selectorWrapper(state), [state]);
@@ -470,12 +470,12 @@ export const useStore = createStoreUtility(
         // detect change
         const hasChange = isMultipleSelectors
           ? // compare local array and next array
-            localState.some(
-              (localValue, index) => nextLocalState[index] !== localValue
-            )
+          localState.some(
+            (localValue, index) => nextLocalState[index] !== localValue
+          )
           : selectorKeys
-          ? selectorKeys.some(key => localState[key] !== nextLocalState[key])
-          : nextLocalState !== localState;
+            ? selectorKeys.some(key => localState[key] !== nextLocalState[key])
+            : nextLocalState !== localState;
 
         if (hasChange) {
           setLocalState((localState = nextLocalState));
@@ -560,6 +560,7 @@ export function hoc(...callbacks) {
       const MemoComponent = memo(Component);
 
       return props => {
+        // callback requires props and Comp, it must return React element
         if (callback.length > 1) {
           return callback(props, MemoComponent);
         }
@@ -626,16 +627,16 @@ export function usePromise(
     try {
       const result = await factory(...cacheKeys);
       !isUnmount &&
-        setState({
-          result
-        });
+      setState({
+        result
+      });
 
       onSuccess && onSuccess(result, ...cacheKeys);
     } catch (error) {
       !isUnmount &&
-        setState({
-          error
-        });
+      setState({
+        error
+      });
 
       onFailure && onFailure(error, ...cacheKeys);
     }
@@ -702,37 +703,79 @@ function generateId() {
  * }
  */
 export const useLoader = createStoreUtility((store, loaderFactory, ...args) => {
-  const contextRef = useRef(evalLoaderContext(store, loaderFactory, args));
   const [, setState] = useState();
 
   function forceRender() {
     setState({});
   }
 
+  if (typeof loaderFactory === "function") {
+    return useSingleLoader(store, loaderFactory, forceRender, args);
+  }
+  return useMultipleLoaders(store, loaderFactory, forceRender, args);
+});
+
+function useMultipleLoaders(store, loaderFactories, forceRender, args) {
+  const ref = useRef(
+    loaderFactories.map(loaderFactory =>
+      evalLoaderContext(store, loaderFactory, args)
+    )
+  );
+
   useEffect(() => {
-    // loader triggered by another component, we just listen when data loaded
-    if (!tryExecuteLoader(contextRef, store, forceRender)) {
-      if (contextRef.current.status === loaderStatus.loading) {
-        // re-render component once data loaded
-        contextRef.current.promise.then(forceRender);
+    for (const context of ref.current) {
+      const itemRef = { current: context };
+      // loader triggered by another component, we just listen when data loaded
+      if (!tryExecuteLoader(itemRef, store, forceRender)) {
+        if (itemRef.current.status === loaderStatus.loading) {
+          // re-render component once data loaded
+          itemRef.current.promise.then(forceRender);
+        }
       }
     }
   });
 
   useEffect(() =>
     store.subscribe(() => {
-      contextRef.current = evalLoaderContext(store, loaderFactory, args);
-      // there are somethings changed in cache keys, we should re-render component
-      if (contextRef.current.status === loaderStatus.new) {
+      ref.current = loaderFactories.map(loaderFactory =>
+        evalLoaderContext(store, loaderFactory, args)
+      );
+      if (ref.current.some(x => x.status === loaderStatus.new)) {
         forceRender();
       }
     })
   );
 
-  return contextRef.current.project
-    ? contextRef.current.project(contextRef.current)
-    : contextRef.current;
-});
+  return ref.current.map(context =>
+    context.project ? context.project(context) : context
+  );
+}
+
+function useSingleLoader(store, loaderFactory, forceRender, args) {
+  const ref = useRef(evalLoaderContext(store, loaderFactory, args));
+
+  useEffect(() => {
+    // loader triggered by another component, we just listen when data loaded
+    if (!tryExecuteLoader(ref, store, forceRender)) {
+      if (ref.current.status === loaderStatus.loading) {
+        // re-render component once data loaded
+        ref.current.promise.then(forceRender);
+      }
+    }
+  });
+
+  useEffect(() =>
+    store.subscribe(() => {
+      ref.current = evalLoaderContext(store, loaderFactory, args);
+      // there are somethings changed in cache keys, we should re-render component
+      if (ref.current.status === loaderStatus.new) {
+        forceRender();
+      }
+    })
+  );
+
+  return ref.current.project ? ref.current.project(ref.current) : ref.current;
+}
 
 function tryExecuteLoader(contextRef, store, forceRender) {
   if (contextRef.current.status === loaderStatus.new) {
@@ -840,22 +883,21 @@ function evalLoaderContext(store, loaderFactory, args = []) {
 }
 
 export function withLoader(loaders, fallback) {
-  const hook = useLoader;
   const entries = Object.entries(loaders || {});
+  const loaderFactories = entries.map(x => x[1]);
   return Comp => props => {
-    const newProps = {
-      ...props
-    };
-    const allDone = entries.every(([propName, loader]) => {
-      const { payload, done } = hook(loader);
-      newProps[propName] = payload;
-      return done;
-    });
-
-    if (allDone) {
-      return createElement(Comp, newProps);
+    const contexts = useLoader(loaderFactories);
+    if (contexts.every(x => x.done)) {
+      return createElement(Comp, {
+        ...contexts.reduce(
+          (newProps, context, index) => (
+            (newProps[entries[index][0]] = context.payload), newProps
+          ),
+          {}
+        ),
+        ...props
+      });
     }
-
     return fallback ? createElement(fallback, props) : null;
   };
 }

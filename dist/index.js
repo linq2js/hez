@@ -661,6 +661,7 @@ function hoc() {
       var MemoComponent = (0, _react.memo)(Component);
 
       return function (props) {
+        // callback requires props and Comp, it must return React element
         if (callback.length > 1) {
           return callback(props, MemoComponent);
         }
@@ -856,8 +857,6 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     args[_key19 - 2] = arguments[_key19];
   }
 
-  var contextRef = (0, _react.useRef)(evalLoaderContext(store, loaderFactory, args));
-
   var _useState5 = (0, _react.useState)(),
       _useState6 = _slicedToArray(_useState5, 2),
       setState = _useState6[1];
@@ -866,28 +865,94 @@ var useLoader = exports.useLoader = createStoreUtility(function (store, loaderFa
     setState({});
   }
 
+  if (typeof loaderFactory === "function") {
+    return useSingleLoader(store, loaderFactory, forceRender, args);
+  }
+  return useMultipleLoaders(store, loaderFactory, forceRender, args);
+});
+
+function useMultipleLoaders(store, loaderFactories, forceRender, args) {
+  var ref = (0, _react.useRef)(loaderFactories.map(function (loaderFactory) {
+    return evalLoaderContext(store, loaderFactory, args);
+  }));
+
   (0, _react.useEffect)(function () {
-    // loader triggered by another component, we just listen when data loaded
-    if (!tryExecuteLoader(contextRef, store, forceRender)) {
-      if (contextRef.current.status === loaderStatus.loading) {
-        // re-render component once data loaded
-        contextRef.current.promise.then(forceRender);
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
+
+    try {
+      for (var _iterator2 = ref.current[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var context = _step2.value;
+
+        var itemRef = { current: context };
+        // loader triggered by another component, we just listen when data loaded
+        if (!tryExecuteLoader(itemRef, store, forceRender)) {
+          if (itemRef.current.status === loaderStatus.loading) {
+            // re-render component once data loaded
+            itemRef.current.promise.then(forceRender);
+          }
+        }
+      }
+    } catch (err) {
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+          _iterator2.return();
+        }
+      } finally {
+        if (_didIteratorError2) {
+          throw _iteratorError2;
+        }
       }
     }
   });
 
   (0, _react.useEffect)(function () {
     return store.subscribe(function () {
-      contextRef.current = evalLoaderContext(store, loaderFactory, args);
-      // there are somethings changed in cache keys, we should re-render component
-      if (contextRef.current.status === loaderStatus.new) {
+      ref.current = loaderFactories.map(function (loaderFactory) {
+        return evalLoaderContext(store, loaderFactory, args);
+      });
+      if (ref.current.some(function (x) {
+        return x.status === loaderStatus.new;
+      })) {
         forceRender();
       }
     });
   });
 
-  return contextRef.current.project ? contextRef.current.project(contextRef.current) : contextRef.current;
-});
+  return ref.current.map(function (context) {
+    return context.project ? context.project(context) : context;
+  });
+}
+
+function useSingleLoader(store, loaderFactory, forceRender, args) {
+  var ref = (0, _react.useRef)(evalLoaderContext(store, loaderFactory, args));
+
+  (0, _react.useEffect)(function () {
+    // loader triggered by another component, we just listen when data loaded
+    if (!tryExecuteLoader(ref, store, forceRender)) {
+      if (ref.current.status === loaderStatus.loading) {
+        // re-render component once data loaded
+        ref.current.promise.then(forceRender);
+      }
+    }
+  });
+
+  (0, _react.useEffect)(function () {
+    return store.subscribe(function () {
+      ref.current = evalLoaderContext(store, loaderFactory, args);
+      // there are somethings changed in cache keys, we should re-render component
+      if (ref.current.status === loaderStatus.new) {
+        forceRender();
+      }
+    });
+  });
+
+  return ref.current.project ? ref.current.project(ref.current) : ref.current;
+}
 
 function tryExecuteLoader(contextRef, store, forceRender) {
   var _this = this;
@@ -1042,28 +1107,20 @@ function evalLoaderContext(store, loaderFactory) {
 }
 
 function withLoader(loaders, fallback) {
-  var hook = useLoader;
   var entries = Object.entries(loaders || {});
+  var loaderFactories = entries.map(function (x) {
+    return x[1];
+  });
   return function (Comp) {
     return function (props) {
-      var newProps = _extends({}, props);
-      var allDone = entries.every(function (_ref7) {
-        var _ref8 = _slicedToArray(_ref7, 2),
-            propName = _ref8[0],
-            loader = _ref8[1];
-
-        var _hook = hook(loader),
-            payload = _hook.payload,
-            done = _hook.done;
-
-        newProps[propName] = payload;
-        return done;
-      });
-
-      if (allDone) {
-        return (0, _react.createElement)(Comp, newProps);
+      var contexts = useLoader(loaderFactories);
+      if (contexts.every(function (x) {
+        return x.done;
+      })) {
+        return (0, _react.createElement)(Comp, _extends({}, contexts.reduce(function (newProps, context, index) {
+          return newProps[entries[index][0]] = context.payload, newProps;
+        }, {}), props));
       }
-
       return fallback ? (0, _react.createElement)(fallback, props) : null;
     };
   };
